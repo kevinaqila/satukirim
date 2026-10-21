@@ -1142,7 +1142,6 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                 alt="Pemilik UMKM mengemas paket pesanan pelanggan dengan rapi"
                                 loading="lazy"
                             />
-                            <div class="photo-caption-tag">Pedagang UMKM di Studio Workshop</div>
                         </figure>
                         <figure class="photo-floating-thumb">
                             <img

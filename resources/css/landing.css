@@ -3105,19 +3105,6 @@
         transform: scale(1.03);
     }
 
-    .landing .photo-caption-tag {
-        position: absolute;
-        bottom: 0.9rem;
-        left: 0.9rem;
-        padding: 0.35rem 0.85rem;
-        border-radius: 999px;
-        background: rgba(44, 44, 44, 0.8);
-        color: #fff;
-        font-size: 0.78rem;
-        font-weight: 500;
-        backdrop-filter: blur(8px);
-    }
-
     .landing .photo-floating-thumb {
         position: absolute;
         bottom: -1.5rem;
