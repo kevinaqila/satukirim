@@ -14,24 +14,24 @@ import PasskeyVerify from '@/components/PasskeyVerify.vue';
 
 defineOptions({
     layout: {
-        title: 'Confirm password',
+        title: 'Konfirmasi Kata Sandi',
         description:
-            'This is a secure area of the application. Please confirm your password before continuing.',
+            'Ini adalah area aman aplikasi. Harap masukkan kata sandi Anda untuk melanjutkan.',
     },
 });
 </script>
 
 <template>
-    <Head title="Confirm password" />
+    <Head title="Konfirmasi Kata Sandi" />
 
     <PasskeyVerify
         :routes="{
             options: confirmOptions(),
             submit: confirmStore(),
         }"
-        label="Confirm with passkey"
-        loading-label="Confirming..."
-        separator="Or confirm with password"
+        label="Konfirmasi dengan passkey"
+        loading-label="Memproses konfirmasi..."
+        separator="Atau konfirmasi dengan kata sandi"
     />
 
     <Form
@@ -41,14 +41,14 @@ defineOptions({
     >
         <div class="space-y-6">
             <div class="grid gap-2">
-                <Label htmlFor="password">Password</Label>
+                <Label for="password" class="text-sm font-medium text-[#2C2C2C]">Kata Sandi</Label>
                 <PasswordInput
                     id="password"
                     name="password"
-                    class="mt-1 block w-full"
                     required
                     autocomplete="current-password"
                     autofocus
+                    placeholder="Masukkan kata sandi"
                 />
 
                 <InputError :message="errors.password" />
@@ -56,12 +56,13 @@ defineOptions({
 
             <div class="flex items-center">
                 <Button
-                    class="w-full"
+                    size="lg"
+                    class="w-full font-medium"
                     :disabled="processing"
                     data-test="confirm-password-button"
                 >
                     <Spinner v-if="processing" />
-                    Confirm password
+                    <span>Konfirmasi Kata Sandi</span>
                 </Button>
             </div>
         </div>

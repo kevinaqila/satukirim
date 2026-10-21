@@ -11,8 +11,8 @@ import { email } from '@/routes/password';
 
 defineOptions({
     layout: {
-        title: 'Forgot password',
-        description: 'Enter your email to receive a password reset link',
+        title: 'Lupa Kata Sandi',
+        description: 'Masukkan email tokomu untuk menerima tautan pemulihan kata sandi',
     },
 });
 
@@ -22,11 +22,11 @@ defineProps<{
 </script>
 
 <template>
-    <Head title="Forgot password" />
+    <Head title="Lupa Kata Sandi" />
 
     <div
         v-if="status"
-        class="mb-4 text-center text-sm font-medium text-green-600"
+        class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-sm font-medium text-emerald-700"
     >
         {{ status }}
     </div>
@@ -34,33 +34,34 @@ defineProps<{
     <div class="space-y-6">
         <Form v-bind="email.form()" v-slot="{ errors, processing }">
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email" class="text-sm font-medium text-[#2C2C2C]">Alamat Email</Label>
                 <Input
                     id="email"
                     type="email"
                     name="email"
                     autocomplete="off"
                     autofocus
-                    placeholder="email@example.com"
+                    placeholder="nama@toko.com"
                 />
                 <InputError :message="errors.email" />
             </div>
 
             <div class="my-6 flex items-center justify-start">
                 <Button
-                    class="w-full"
+                    size="lg"
+                    class="w-full font-medium"
                     :disabled="processing"
                     data-test="email-password-reset-link-button"
                 >
                     <Spinner v-if="processing" />
-                    Email password reset link
+                    <span>Kirim Tautan Pemulihan</span>
                 </Button>
             </div>
         </Form>
 
-        <div class="text-muted-foreground space-x-1 text-center text-sm">
-            <span>Or, return to</span>
-            <TextLink :href="login()">log in</TextLink>
+        <div class="pt-2 text-left text-sm text-[#2C2C2C]/70">
+            <span>Ingat kata sandi Anda?</span>
+            <TextLink :href="login()" class="ml-1 font-semibold !no-underline">Masuk ke Akun</TextLink>
         </div>
     </div>
 </template>
