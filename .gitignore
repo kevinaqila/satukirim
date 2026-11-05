@@ -27,3 +27,10 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+*.pdf
+*.docx
+/.agents
+/.ai
+/AGENTS.md
+/CLAUDE.md
+/boost.json
