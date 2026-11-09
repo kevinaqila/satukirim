@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 426 110" width="426" height="110" fill="none">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Mukta:wght@800&amp;display=swap');
+      .satukirim-text {
+        font-family: 'Mukta', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 800;
+        font-size: 58px;
+        fill: #853953;
+        letter-spacing: -0.5px;
+      }
+    </style>
+    <path id="satukirim-petal" d="M 33 0 C 15 0, 0 15, 0 36.5 V 60 C 0 68, 5 73, 13 73 H 42 C 57 73, 67 56, 67 36.5 C 67 16, 53 0, 33 0 Z" />
+    <clipPath id="satukirim-clip">
+      <use href="#satukirim-petal" />
+    </clipPath>
+  </defs>
+
+  <!-- Petal Icon -->
+  <g transform="translate(15, 15) scale(1.09589)">
+    <use href="#satukirim-petal" fill="#A23F5C" />
+    <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#592244" />
+    <g clip-path="url(#satukirim-clip)">
+      <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#79304E" />
+    </g>
+  </g>
+
+  <!-- Brand Text in Primary Color -->
+  <text x="146" y="73" class="satukirim-text">SatuKirim</text>
+</svg>
+

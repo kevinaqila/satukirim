@@ -8,7 +8,9 @@ type Props = {
     variant?: 'color' | 'white' | 'dark' | 'auto';
     size?: 'sm' | 'md' | 'lg' | 'xl';
     showTagline?: boolean;
+    badgeIcon?: boolean;
     className?: HTMLAttributes['class'];
+    iconClass?: HTMLAttributes['class'];
 };
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,26 +18,30 @@ const props = withDefaults(defineProps<Props>(), {
     variant: 'color',
     size: 'md',
     showTagline: false,
+    badgeIcon: false,
 });
 
 const iconClasses = computed(() => {
+    if (props.iconClass) {
+        return props.iconClass;
+    }
     switch (props.size) {
         case 'sm':
-            return props.layout === 'vertical' ? 'h-9 w-auto' : 'h-7.5 w-auto';
+            return props.layout === 'vertical' ? 'h-8 w-auto' : 'h-6 w-auto';
         case 'lg':
             return props.layout === 'vertical' ? 'h-18 w-auto' : 'h-12 w-auto';
         case 'xl':
             return props.layout === 'vertical' ? 'h-24 w-auto' : 'h-16 w-auto';
         case 'md':
         default:
-            return props.layout === 'vertical' ? 'h-14 w-auto' : 'h-9.5 w-auto';
+            return props.layout === 'vertical' ? 'h-14 w-auto' : 'h-7.5 w-auto';
     }
 });
 
 const textClasses = computed(() => {
     switch (props.size) {
         case 'sm':
-            return 'text-base';
+            return 'text-base sm:text-lg';
         case 'lg':
             return props.layout === 'vertical' ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl';
         case 'xl':
@@ -50,10 +56,10 @@ const textColorClasses = computed(() => {
     if (props.variant === 'white') {
         return 'text-white';
     }
-    if (props.variant === 'auto') {
-        return 'text-[#2C2C2C] dark:text-stone-100';
+    if (props.variant === 'dark') {
+        return 'text-[#2C2C2C]';
     }
-    return 'text-[#2C2C2C]';
+ return'text-[#2C2C2C]';
 });
 
 const taglineColorClasses = computed(() => {
@@ -74,7 +80,17 @@ const taglineColorClasses = computed(() => {
             props.className,
         ]"
     >
+        <div
+            v-if="props.badgeIcon"
+            class="size-8.5 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-200 group-hover:scale-105"
+        >
+            <AppLogoIcon
+                variant="color"
+                class="h-5 w-auto"
+            />
+        </div>
         <AppLogoIcon
+            v-else
             variant="color"
             :class="[iconClasses, 'shrink-0 transition-transform duration-200 group-hover:scale-105']"
         />

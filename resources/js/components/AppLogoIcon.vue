@@ -6,6 +6,7 @@ defineOptions({
 });
 
 type Props = {
+    class?: HTMLAttributes['class'];
     className?: HTMLAttributes['class'];
     variant?: 'color' | 'monochrome' | 'white';
 };
@@ -20,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 100 73"
         fill="none"
-        :class="['overflow-visible shrink-0', props.className]"
+        :class="['overflow-visible shrink-0', props.class, props.className]"
         v-bind="$attrs"
     >
         <defs>
