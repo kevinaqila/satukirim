@@ -8,12 +8,22 @@ import {
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import UserInfo from '@/components/UserInfo.vue';
+import { useSettingsModal } from '@/composables/useSettingsModal';
 import { logout } from '@/routes';
-import { edit } from '@/routes/profile';
 import type { User } from '@/types';
 
 type Props = {
     user: User;
+};
+
+const { openSettingsModal } = useSettingsModal();
+
+const handleSettingsClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        openSettingsModal('profile');
+    } else {
+        router.visit('/settings');
+    }
 };
 
 const handleLogout = () => {
@@ -25,17 +35,15 @@ defineProps<Props>();
 
 <template>
     <DropdownMenuLabel class="p-0 font-normal">
-        <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+        <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm min-w-0">
             <UserInfo :user="user" :show-email="true" />
         </div>
     </DropdownMenuLabel>
     <DropdownMenuSeparator />
     <DropdownMenuGroup>
-        <DropdownMenuItem :as-child="true">
-            <Link class="block w-full cursor-pointer" :href="edit()" prefetch>
-                <Settings class="mr-2 h-4 w-4" />
-                Settings
-            </Link>
+        <DropdownMenuItem @click="handleSettingsClick" class="cursor-pointer">
+            <Settings class="mr-2 h-4 w-4" />
+            Pengaturan Akun
         </DropdownMenuItem>
     </DropdownMenuGroup>
     <DropdownMenuSeparator />
@@ -48,7 +56,7 @@ defineProps<Props>();
             data-test="logout-button"
         >
             <LogOut class="mr-2 h-4 w-4" />
-            Log out
+            Keluar
         </Link>
     </DropdownMenuItem>
 </template>
