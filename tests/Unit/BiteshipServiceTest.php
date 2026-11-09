@@ -154,3 +154,138 @@ test('biteship service handles tracking response', function () {
     expect($result['success'])->toBeTrue()
         ->and($result['data']['status'])->toBe('on_process');
 });
+
+test('biteship service can create order and returns order id and waybill', function () {
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'message' => 'Order created successfully',
+            'id' => 'biteship_order_test_999',
+            'status' => 'allocated',
+            'courier' => [
+                'tracking_id' => 'TRK123456789',
+                'waybill_id' => 'JNE0987654321',
+                'company' => 'jne',
+                'type' => 'reg',
+            ],
+            'price' => 18000,
+        ], 200),
+    ]);
+
+    $shipment = new \App\Models\Shipment([
+        'order_number' => 'SATU-TEST-001',
+        'recipient_name' => 'Budi',
+        'recipient_phone' => '08123456789',
+        'destination_address' => 'Jl. Gubeng',
+        'destination_area_id' => 'IDnp60281',
+        'courier_code' => 'jne',
+        'courier_service_code' => 'reg',
+        'weight' => 1000,
+        'item_value' => 50000,
+        'payment_method' => 'cod',
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->createOrder($shipment);
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['biteship_order_id'])->toBe('biteship_order_test_999')
+        ->and($result['waybill_number'])->toBe('JNE0987654321');
+
+    Http::assertSent(function ($request) {
+        $data = $request->data();
+
+        return $request->url() === 'https://api.biteship.com/v1/orders'
+            && $data['courier_company'] === 'jne'
+            && isset($data['cash_on_delivery'])
+            && $data['cash_on_delivery']['amount'] === 50000;
+    });
+});
+
+test('biteship service automatically retries when schedule time has passed', function () {
+    $callCount = 0;
+    Http::fake([
+        'api.biteship.com/v1/orders' => function ($request) use (&$callCount) {
+            $callCount++;
+            if ($callCount === 1) {
+                return Http::response([
+                    'success' => false,
+                    'error' => 'Time already passed. Set new delivery time.',
+                    'code' => 40002013,
+                ], 400);
+            }
+
+            return Http::response([
+                'success' => true,
+                'id' => 'biteship_order_retried_123',
+                'courier' => [
+                    'waybill_id' => 'RETRY-AWB-999',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $shipment = new \App\Models\Shipment([
+        'order_number' => 'SATU-RETRY-001',
+        'recipient_name' => 'Budi',
+        'recipient_phone' => '08123456789',
+        'destination_address' => 'Jl. Gubeng',
+        'destination_area_id' => 'IDnp60281',
+        'courier_code' => 'jne',
+        'courier_service_code' => 'reg',
+        'weight' => 1000,
+        'item_value' => 50000,
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->createOrder($shipment);
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['biteship_order_id'])->toBe('biteship_order_retried_123')
+        ->and($result['waybill_number'])->toBe('RETRY-AWB-999')
+        ->and($callCount)->toBe(2);
+});
+
+test('biteship service automatically falls back to now when courier does not support scheduled delivery', function () {
+    $callCount = 0;
+    Http::fake([
+        'api.biteship.com/v1/orders' => function ($request) use (&$callCount) {
+            $callCount++;
+            if ($callCount === 1) {
+                return Http::response([
+                    'success' => false,
+                    'error' => 'Courier is not available for scheduled delivery',
+                    'code' => 40002007,
+                ], 400);
+            }
+
+            return Http::response([
+                'success' => true,
+                'id' => 'biteship_order_fallback_now_456',
+                'courier' => [
+                    'waybill_id' => 'NOW-AWB-777',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $shipment = new \App\Models\Shipment([
+        'order_number' => 'SATU-NOW-001',
+        'recipient_name' => 'Budi',
+        'recipient_phone' => '08123456789',
+        'destination_address' => 'Jl. Gubeng',
+        'destination_area_id' => 'IDnp60281',
+        'courier_code' => 'jne',
+        'courier_service_code' => 'yes',
+        'weight' => 1000,
+        'item_value' => 50000,
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->createOrder($shipment);
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['biteship_order_id'])->toBe('biteship_order_fallback_now_456')
+        ->and($result['waybill_number'])->toBe('NOW-AWB-777')
+        ->and($callCount)->toBe(2);
+});

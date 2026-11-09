@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Shipment;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -187,6 +188,41 @@ class BiteshipService
     }
 
     /**
+     * Get order details and tracking status from Biteship.
+     *
+     * @return array<string, mixed>
+     */
+    public function getOrder(string $orderId): array
+    {
+        $cleanId = trim($orderId);
+
+        try {
+            $response = $this->client()->get("/v1/orders/{$cleanId}");
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                ];
+            }
+
+            $errorData = $response->json();
+
+            return [
+                'success' => false,
+                'message' => $errorData['error'] ?? $errorData['message'] ?? 'Data pesanan tidak ditemukan di Biteship.',
+            ];
+        } catch (Throwable $e) {
+            Log::error('Biteship getOrder exception: '.$e->getMessage(), ['order_id' => $cleanId]);
+
+            return [
+                'success' => false,
+                'message' => 'Terjadi kendala saat memeriksa pesanan di Biteship.',
+            ];
+        }
+    }
+
+    /**
      * Track a waybill / order status from courier.
      *
      * @return array<string, mixed>
@@ -224,6 +260,137 @@ class BiteshipService
             return [
                 'success' => false,
                 'message' => 'Terjadi kendala saat memeriksa status resi pengiriman.',
+            ];
+        }
+    }
+
+    /**
+     * Create an order in Biteship to dispatch courier pickup.
+     *
+     * @return array<string, mixed>
+     */
+    public function createOrder(Shipment $shipment): array
+    {
+        $shipment->loadMissing('store');
+        $store = $shipment->store;
+
+        $originPhone = preg_replace('/\D/', '', (string) ($store?->phone ?? '081234567890'));
+        $destPhone = preg_replace('/\D/', '', (string) $shipment->recipient_phone);
+
+        $originPostal = (int) ($store?->postal_code ?? 0);
+        $destPostal = (int) ($shipment->destination_postal_code ?? 0);
+
+        $courierCompany = strtolower(trim((string) $shipment->courier_code));
+        $courierType = strtolower(trim((string) $shipment->courier_service_code));
+
+        $payload = [
+            'reference_id' => $shipment->order_number,
+            'origin_contact_name' => $store?->name ?? 'Toko Pengirim',
+            'origin_contact_phone' => $originPhone,
+            'origin_address' => $store?->address ?? 'Alamat Toko',
+            'origin_area_id' => $store?->biteship_area_id,
+            'destination_contact_name' => $shipment->recipient_name,
+            'destination_contact_phone' => $destPhone,
+            'destination_address' => $shipment->destination_address,
+            'destination_area_id' => $shipment->destination_area_id,
+            'courier_company' => $courierCompany,
+            'courier_type' => $courierType,
+            'delivery_type' => 'now',
+            'order_note' => 'Order '.$shipment->order_number,
+            'items' => [
+                [
+                    'name' => $shipment->item_description ?: 'Paket Pengiriman UMKM',
+                    'description' => $shipment->item_category ?: 'Retail',
+                    'value' => (int) ($shipment->item_value > 0 ? $shipment->item_value : 50000),
+                    'quantity' => 1,
+                    'weight' => max(100, (int) $shipment->weight),
+                ],
+            ],
+        ];
+
+        if ($originPostal > 0) {
+            $payload['origin_postal_code'] = $originPostal;
+        }
+        if ($destPostal > 0) {
+            $payload['destination_postal_code'] = $destPostal;
+        }
+
+        if ($shipment->payment_method === 'cod') {
+            $codAmount = (int) $shipment->item_value;
+            if ($codAmount > 0) {
+                $payload['cash_on_delivery'] = [
+                    'amount' => $codAmount,
+                    'type' => 'cash',
+                ];
+            }
+        }
+
+        try {
+            $response = $this->client()->post('/v1/orders', $payload);
+
+            if (! $response->successful()) {
+                $errorData = $response->json();
+                $errorCode = $errorData['code'] ?? null;
+                $errorMessage = strtolower($errorData['error'] ?? ($errorData['message'] ?? ''));
+
+                // If courier explicitly requires scheduled delivery
+                if ($errorCode === 40002005 || $errorCode === 40002013 || str_contains($errorMessage, 'scheduled') || str_contains($errorMessage, 'delivery_type')) {
+                    $wibNow = now('Asia/Jakarta');
+                    $pickupDate = $wibNow->hour >= 15 ? $wibNow->copy()->addDay()->format('Y-m-d') : $wibNow->format('Y-m-d');
+                    $pickupTime = $wibNow->hour >= 15 ? '10:00' : $wibNow->copy()->addHours(2)->format('H:i');
+
+                    $payload['delivery_type'] = 'scheduled';
+                    $payload['delivery_date'] = $pickupDate;
+                    $payload['delivery_time'] = $pickupTime;
+
+                    $retryResponse = $this->client()->post('/v1/orders', $payload);
+                    if ($retryResponse->successful()) {
+                        $response = $retryResponse;
+                    }
+                } elseif ($errorCode === 40002007 || str_contains($errorMessage, 'not available for scheduled')) {
+                    unset($payload['delivery_date'], $payload['delivery_time']);
+                    $payload['delivery_type'] = 'now';
+
+                    $retryResponse = $this->client()->post('/v1/orders', $payload);
+                    if ($retryResponse->successful()) {
+                        $response = $retryResponse;
+                    }
+                }
+            }
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $biteshipOrderId = $data['id'] ?? null;
+                $waybill = $data['courier']['waybill_id'] ?? ($data['courier']['tracking_id'] ?? null);
+
+                return [
+                    'success' => true,
+                    'data' => $data,
+                    'biteship_order_id' => $biteshipOrderId,
+                    'waybill_number' => $waybill,
+                ];
+            }
+
+            $errorData = $response->json();
+            Log::warning('Biteship createOrder failed', [
+                'status' => $response->status(),
+                'error' => $errorData,
+                'payload' => $payload,
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $errorData['error'] ?? $errorData['message'] ?? 'Gagal membuat pesanan pengiriman di Biteship.',
+                'error' => $errorData,
+            ];
+        } catch (Throwable $e) {
+            Log::error('Biteship createOrder exception: '.$e->getMessage(), [
+                'payload' => $payload,
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menghubungi API Biteship: '.$e->getMessage(),
             ];
         }
     }
