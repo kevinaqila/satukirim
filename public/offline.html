@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mode Offline - SatuKirim</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            background-color: #fcfbfb;
+            color: #1c1917;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            text-align: center;
+        }
+        .container {
+            max-width: 420px;
+            padding: 32px 24px;
+            background: #ffffff;
+            border-radius: 24px;
+            border: 1px solid #e7e5e4;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: #fdf2f4;
+            color: #853953;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #853953, #b34065);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px auto;
+            font-size: 30px;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        p {
+            font-size: 13px;
+            color: #78716c;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 12px 20px;
+            background: #853953;
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #6c2e43;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">📡 Mode Offline PWA</div>
+        <div class="icon">📦</div>
+        <h1>Koneksi Terputus</h1>
+        <p>Anda sedang berada di luar jangkauan internet. Fitur offline shell SatuKirim tetap aktif. Sambungkan kembali perangkat Anda untuk melanjutkan transaksi.</p>
+        <button class="btn" onclick="window.location.reload()">Coba Muat Ulang</button>
+    </div>
+</body>
+</html>
