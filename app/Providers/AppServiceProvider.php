@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Shipment;
+use App\Models\Store;
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        Relation::morphMap([
+            'Shipment' => Shipment::class,
+            'Store' => Store::class,
+            'User' => User::class,
+        ]);
     }
 
     /**

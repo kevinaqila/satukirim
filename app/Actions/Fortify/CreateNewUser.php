@@ -41,6 +41,8 @@ class CreateNewUser implements CreatesNewUsers
             'name' => $input['name'],
             'email' => $input['email'],
             'phone' => $phone,
+            'role' => 'umkm',
+            'is_active' => true,
             'password' => $input['password'],
         ]);
     }
