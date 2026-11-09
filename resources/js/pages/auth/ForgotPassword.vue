@@ -59,7 +59,7 @@ defineProps<{
             </div>
         </Form>
 
-        <div class="pt-2 text-left text-sm text-[#2C2C2C]/70">
+        <div class="pt-2 text-center text-sm text-[#2C2C2C]/70">
             <span>Ingat kata sandi Anda?</span>
             <TextLink :href="login()" class="ml-1 font-semibold !no-underline">Masuk ke Akun</TextLink>
         </div>

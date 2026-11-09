@@ -151,7 +151,7 @@ const handlePhoneInput = (e: Event) => {
             </Button>
         </div>
 
-        <div class="pt-3 text-left text-sm text-[#2C2C2C]/70">
+        <div class="pt-3 text-center text-sm text-[#2C2C2C]/70">
             Sudah memiliki akun?
             <TextLink
                 :href="login()"

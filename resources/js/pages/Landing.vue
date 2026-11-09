@@ -102,13 +102,10 @@ const courierPartners: CourierPartner[] = [
     { name: 'Ninja Xpress', logo: '/images/couriers/ninjaxpress.svg' },
     { name: 'Lion Parcel', logo: '/images/couriers/lionparcel.svg' },
     { name: 'Pos Indonesia', logo: '/images/couriers/posindonesia.svg' },
-    { name: 'ID Express', logo: '/images/couriers/idexpress.svg' },
-    { name: 'SAP Express', logo: '/images/couriers/sapexpress.svg' },
     { name: 'TIKI', logo: '/images/couriers/tiki.svg' },
-    { name: 'Wahana Express', logo: '/images/couriers/wahana.svg' },
 ];
 
-const marqueeItems = [...courierPartners, ...courierPartners];
+const marqueeItems = [...courierPartners, ...courierPartners, ...courierPartners];
 
 const quickRoutes = [
     { from: 'Jakarta', to: 'Surabaya' },
@@ -161,7 +158,7 @@ function onOriginInput(): void {
             originHasSearched.value = true;
             showOriginDropdown.value = true;
         }
-    }, 250);
+    }, 300);
 }
 
 function onOriginFocus(): void {
@@ -217,7 +214,7 @@ function onDestInput(): void {
             destHasSearched.value = true;
             showDestDropdown.value = true;
         }
-    }, 250);
+    }, 300);
 }
 
 function onDestFocus(): void {
@@ -289,30 +286,33 @@ function selectQuickRoute(from: string, to: string): void {
 
 
 const features = [
-    { icon: Wallet, title: 'Komparasi Tarif Real-Time', text: 'Bandingkan tarif dan durasi estimasi dari 8+ kurir sekaligus. Pilih yang paling hemat atau tercepat.' },
-    { icon: Store, title: 'Multi-Alamat & Multi-Gudang', text: 'Punya beberapa toko atau gudang pengiriman? Simpan alamat dan tentukan lokasi penjemputan dengan mudah.' },
-    { icon: ShieldCheck, title: 'Bayar Fleksibel via Midtrans', text: 'Bayar ongkir instan via QRIS semua bank atau Virtual Account tanpa kewajiban deposit saldo dompet.' },
-    { icon: FileText, title: 'Rekap & Riwayat Kiriman', text: 'Catatan pengeluaran ongkir dan riwayat nomor resi tersimpan rapi, siap dipantau atau diekspor kapan saja.' },
-    { icon: Search, title: 'Lacak Publik Tanpa Akun', text: 'Pembeli bisa langsung memantau perjalanan paket lewat tautan resmi tanpa diwajibkan login atau mendaftar.' },
+    { icon: Search, title: 'Komparasi Tarif Real-Time', text: 'Bandingkan tarif dan durasi estimasi dari 8 ekspedisi resmi sekaligus. Pilih yang paling hemat atau tercepat.' },
+    { icon: Wallet, title: 'Layanan COD & Saldo Dompet', text: 'Dukung transaksi Bayar di Tempat (COD) tanpa was-was. Dana penjualan tertampung aman di dompet dan siap dicairkan ke rekening bank tokomu.' },
+    { icon: CreditCard, title: 'Bayar Fleksibel via Midtrans', text: 'Bayar ongkir paket instan via QRIS semua bank atau Virtual Account tanpa kewajiban deposit saldo dompet di awal.' },
+    { icon: Printer, title: 'Cetak Label Thermal A6', text: 'Format standar ekspedisi 100×150 mm resmi dengan barcode tebal berstandar kurir, tinggal tempel di paket.' },
+    { icon: MessageCircle, title: 'Notifikasi Otomatis WhatsApp', text: 'Kabari pembeli secara otomatis saat pesanan dibuat, paket dijemput kurir, hingga barang tiba di tujuan.' },
+    { icon: Store, title: 'Multi-Alamat & Multi-Gudang', text: 'Punya beberapa toko atau gudang pengiriman? Simpan alamat dan tentukan lokasi penjemputan paket dengan mudah.' },
+    { icon: Truck, title: 'Lacak Publik Tanpa Akun', text: 'Pembeli bisa langsung memantau perjalanan paket lewat tautan resmi tanpa diwajibkan login atau mendaftar akun.' },
+    { icon: FileText, title: 'Rekap Riwayat & Ekspor Data', text: 'Catatan pengeluaran ongkir dan riwayat resi tersimpan rapi, lengkap dengan fitur ekspor data siap audit.' },
     { icon: Smartphone, title: 'PWA Mobile-First Ringan', text: 'Pasang langsung di layar utama smartphone tanpa unduh file besar di Play Store. Cepat, hemat kuota dan memori.' },
 ];
 
 const comparisons = [
     {
         bad: 'Buka 4-5 aplikasi kurir bergantian hanya untuk cek selisih ongkir Rp2.000',
-        good: 'Cek dan bandingkan 8+ kurir berdampingan dalam 1 detik di satu layar',
+        good: 'Cek dan bandingkan 8 ekspedisi resmi berdampingan dalam 1 detik di satu layar',
     },
     {
         bad: 'Tulis manual nama pembeli di buku lalu bolak-balik ketik nomor resi ke chat WA',
-        good: 'Cetak label thermal otomatis & kirim pesan notif resi ke WA pembeli dengan 1 klik',
+        good: 'Cetak label thermal otomatis & kirim notifikasi resi ke WA pembeli dengan 1 klik',
     },
     {
         bad: 'Harus repot antre di gerai drop-point sore-sore setelah lelah packing pesanan',
         good: 'Kurir langsung datang menjemput ke depan rumah/toko tanpa minimum jumlah paket',
     },
     {
-        bad: 'Tebak-tebakan tarif ongkir yang berisiko tekor di ongkos kirim',
-        good: 'Tarif terhubung API resmi, terhitung akurat sesuai berat dan zona wilayah',
+        bad: 'Keuntungan toko tergerus potongan komisi persentase marketplace yang tinggi (5–10%)',
+        good: 'Seluruh laba jualan utuh untuk tokomu dengan biaya layanan flat Rp 1.000 per paket',
     },
 ];
 
@@ -351,9 +351,11 @@ const audiences = [
 
 const faqs = [
     { q: 'Apakah SatuKirim sebuah marketplace belanja?', a: 'Bukan. SatuKirim adalah aggregator layanan pengiriman kurir khusus bagi pedagang independen (non-marketplace) untuk membandingkan ongkir, menerbitkan nomor resi, memesan kurir jemput, dan memantau status paket.' },
-    { q: 'Bagaimana alur pembayaran ongkos kirim?', a: 'Pembayaran ongkir dilakukan secara non-COD di awal melalui Midtrans menggunakan QRIS (BCA, GoPay, OVO, ShopeePay) maupun Virtual Account bank.' },
+    { q: 'Berapa biaya penggunaan aplikasi SatuKirim?', a: 'Tidak ada biaya langganan bulanan maupun potongan komisi persentase dari nilai produk. SatuKirim hanya mengenakan biaya layanan sistem flat sebesar Rp 1.000 per transaksi pengiriman yang berhasil.' },
+    { q: 'Bagaimana alur pembayaran ongkos kirim?', a: 'Tersedia dua metode fleksibel: pembayaran Non-COD di awal melalui Midtrans menggunakan QRIS (BCA, GoPay, OVO, ShopeePay) & Virtual Account bank, maupun layanan COD (Bayar di Tempat) di mana dana transaksi masuk ke Saldo Dompet UMKM setelah paket berhasil terkirim.' },
+    { q: 'Bagaimana cara mencairkan dana Saldo Dompet COD?', a: 'Setelah paket COD berstatus delivered (diterima pembeli), dana pembayaran otomatis masuk ke Saldo Siap Tarik di dompet UMKM dan dapat diajukan penarikan kapan saja langsung ke rekening bank Anda.' },
     { q: 'Apakah pembeli saya wajib mendaftar akun di SatuKirim?', a: 'Tidak perlu sama sekali! Pembeli cukup membuka tautan pelacakan publik yang Anda bagikan lewat WhatsApp, dan mereka bisa memantau perjalanan paket tanpa harus login.' },
-    { q: 'Apakah kurir benar-benar datang menjemput ke rumah/toko?', a: 'Ya! Setelah pembayaran ongkos kirim berhasil, sistem otomatis meneruskan jadwal penjemputan (pickup) ke kurir ekspedisi yang Anda pilih.' },
+    { q: 'Apakah kurir benar-benar datang menjemput ke rumah/toko?', a: 'Ya! Setelah booking pengiriman dikonfirmasi, sistem otomatis meneruskan jadwal penjemputan (pickup) ke kurir ekspedisi yang Anda pilih tanpa minimum jumlah paket.' },
     { q: 'Apakah aplikasi ini bisa di-install di HP?', a: 'Bisa! SatuKirim dibangun sebagai Progressive Web App (PWA). Cukup buka di peramban Chrome/Safari HP dan pilih "Tambahkan ke Layar Utama" tanpa perlu unduh dari Play Store.' },
 ];
 
@@ -559,14 +561,15 @@ function scrollToSection(sectionId: string, event?: Event): void {
                     <p class="kicker"><Sparkles class="icon" style="width: 1rem; height: 1rem" /> Agregator Logistik Cerdas untuk UMKM</p>
                     <h1>Kirim paket jualan, <em>tanpa drama ribet.</em></h1>
                     <p class="hero-desc">
-                        Bandingkan ongkir 8+ ekspedisi, bayar instan, cetak label resi thermal, dan kabari pembeli otomatis lewat WhatsApp. Semua dari satu aplikasi ringan di HP.
+                        Bandingkan ongkir 8 ekspedisi resmi, bayar instan, cetak label resi thermal, dan kabari pembeli otomatis lewat WhatsApp. Semua dari satu aplikasi ringan di HP.
                     </p>
                     <div class="hero-cta">
                         <Link :href="register()" class="btn-pill btn-berry">Mulai Kirim Sekarang <ArrowRight class="icon" /></Link>
                         <a href="#perbandingan" class="btn-pill btn-outline" @click="scrollToSection('perbandingan', $event)">Pelajari Keunggulan</a>
                     </div>
                     <div class="hero-tags">
-                        <span><Check class="icon" /> Tanpa Biaya Langganan</span>
+                        <span><Check class="icon" /> Biaya Flat Rp 1.000</span>
+                        <span><Check class="icon" /> Bebas Komisi Persen</span>
                         <span><Check class="icon" /> Ringan Dipasang di HP</span>
                     </div>
                 </div>
@@ -584,7 +587,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                         <form class="widget-body" @submit.prevent="submitWidget">
                             <p class="widget-title">{{ tab === 'ongkir' ? 'Berapa ongkir paketmu hari ini?' : 'Pantau posisi barang pesanan' }}</p>
                             <p class="widget-sub">
-                                {{ tab === 'ongkir' ? 'Bandingkan tarif terbaik dari JNE, J&T, SiCepat, AnterAja, dan lainnya.' : 'Masukkan nomor resi resmi untuk memantau pergerakan paket.' }}
+                                {{ tab === 'ongkir' ? 'Bandingkan tarif terbaik dari 8 ekspedisi resmi (JNE, J&T, SiCepat, AnterAja, TIKI, POS, Ninja, Lion).' : 'Masukkan nomor resi resmi untuk memantau pergerakan paket.' }}
                             </p>
 
                             <div v-if="tab === 'ongkir'" class="quick-routes">
@@ -732,6 +735,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                             <option value="ninja">Ninja Xpress</option>
                                             <option value="lion">Lion Parcel</option>
                                             <option value="pos">Pos Indonesia</option>
+                                            <option value="tiki">TIKI</option>
                                         </select>
                                     </span>
                                 </label>
@@ -890,7 +894,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                 <span>Notifikasi Otomatis</span>
                             </div>
                             <h3 class="card-feature-title">Kirim Resi ke WhatsApp 1-Klik</h3>
-                            <p class="card-feature-sub">Pesan notifikasi rapi dan tautan live tracking instan langsung meluncur ke chat pembeli tanpa perlu ketik manual satu per satu.</p>
+                            <p class="card-feature-sub">Pesan notifikasi rapi dan tautan live tracking instan dikirim ke chat pembeli pada tiap titik perjalanan (resi terbit, kurir pickup, hingga paket tiba) tanpa ketik manual.</p>
                         </div>
 
                         <div class="mockup-frame wa-phone-frame">
@@ -949,7 +953,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                 <span>Standar Ekspedisi A6</span>
                             </div>
                             <h3 class="card-feature-title">Thermal Label Siap Tempel</h3>
-                            <p class="card-feature-sub">Format cetak 100×150 mm resmi dengan barcode tebal berstandar kurir. Anti basah, anti luntur, tinggal tempel di paket.</p>
+                            <p class="card-feature-sub">Format cetak 100×150 mm (A6) resmi dengan barcode tebal berstandar kurir. Anti basah, anti luntur, tinggal tempel di paket.</p>
                         </div>
 
                         <div class="mockup-frame thermal-sticker-frame">
@@ -1128,7 +1132,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                             <span class="benefit-icon"><CheckCircle2 class="icon" /></span>
                             <div>
                                 <h4>Bebas Potongan Komisi Penjualan</h4>
-                                <p>Didesain untuk pedagang mandiri. Seluruh keuntungan penjualan utuh untuk tokomu tanpa potongan admin marketplace 5–10%.(INGAT INGAT BLOM FIX)</p>
+                                <p>Didesain untuk pedagang mandiri. Seluruh keuntungan penjualan utuh untuk tokomu tanpa potongan komisi persentase marketplace (5–10%), hanya biaya layanan flat Rp 1.000 per transaksi yang berhasil.</p>
                             </div>
                         </div>
                     </div>
@@ -1468,44 +1472,44 @@ function scrollToSection(sectionId: string, event?: Event): void {
                             <ul class="footer-col-links">
                                 <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Cek Tarif Ongkir Real-Time</a></li>
                                 <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Pelacakan Resi (Live AWB)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Booking Pickup Otomatis</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Pengiriman Massal (Bulk)</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Cetak Label Thermal 10x10</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Booking Kurir Jemput Gratis</a></li>
                                 <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Layanan Bayar Ditempat (COD)</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Asuransi & Proteksi Paket</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Layanan Muatan Kargo</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Dompet Saldo & Pencairan Dana</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Cetak Label Thermal A6 (100×150)</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Notifikasi WhatsApp Otomatis</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Multi-Alamat Toko & Gudang</a></li>
                             </ul>
                         </div>
 
                         <div class="footer-col">
                             <h3 class="footer-col-title">
-                                Ekspedisi Mitra
+                                8 Ekspedisi Mitra Resmi
                             </h3>
                             <ul class="footer-col-links">
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">JNE Express (Reg, YES, JTR)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">J&T Express (EZ, Super, DOC)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">SiCepat (SIUNTUNG, GOKIL)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">AnterAja (Reguler, Cargo)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Ninja Xpress (Standard, COD)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Lion Parcel (REGPACK, ONEPACK)</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Wahana Prestasi Logistik</a></li>
-                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">POS Indonesia (Kilat Khusus)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">JNE Express (Reguler & YES)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">J&T Express (EZ Reguler)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">SiCepat Ekspres (SIUNTUNG & BEST)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">AnterAja (Reguler & Next Day)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Ninja Xpress (Standard & COD)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">Lion Parcel (REGPACK & ONEPACK)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">POS Indonesia (Pos Reguler)</a></li>
+                                <li><a href="#layanan" @click="scrollToSection('layanan', $event)">TIKI (Reguler Service & ONS)</a></li>
                             </ul>
                         </div>
 
                         <div class="footer-col">
                             <h3 class="footer-col-title">
-                                Solusi Bisnis
+                                Solusi Bisnis UMKM
                             </h3>
                             <ul class="footer-col-links">
                                 <li><a href="#perbandingan" @click="scrollToSection('perbandingan', $event)">Toko Online & Social Seller</a></li>
                                 <li><a href="#perbandingan" @click="scrollToSection('perbandingan', $event)">UMKM Fashion & Konveksi</a></li>
+                                <li><a href="#perbandingan" @click="scrollToSection('perbandingan', $event)">Produk Kosmetik & Perawatan</a></li>
                                 <li><a href="#perbandingan" @click="scrollToSection('perbandingan', $event)">Makanan Kering & Camilan</a></li>
                                 <li><a href="#perbandingan" @click="scrollToSection('perbandingan', $event)">Dropshipper & Reseller</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Program Diskon Ongkir UMKM</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Integrasi Toko & Marketplace</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">API Pengiriman untuk Developer</a></li>
-                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Instal Aplikasi Web PWA</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Bebas Potongan Komisi Persentase</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Biaya Layanan Flat Rp 1.000</a></li>
+                                <li><a href="#fitur" @click="scrollToSection('fitur', $event)">Aplikasi Web PWA Mobile</a></li>
                             </ul>
                         </div>
 
@@ -1517,11 +1521,11 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Pusat Bantuan & Panduan</a></li>
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Panduan Packing Standar Ekspedisi</a></li>
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Tanya Jawab Populer (FAQ)</a></li>
-                                <li><a href="#faq" @click="scrollToSection('faq', $event)">Prosedur Klaim Kerusakan/Kehilangan</a></li>
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Syarat & Ketentuan Layanan</a></li>
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Kebijakan Privasi & Data Pribadi</a></li>
+                                <li><a href="#faq" @click="scrollToSection('faq', $event)">Keamanan Transaksi & Data</a></li>
                                 <li><a href="#faq" @click="scrollToSection('faq', $event)">Tentang SatuKirim Indonesia</a></li>
-                                <li><a href="#faq" @click="scrollToSection('faq', $event)">Hubungi Tim Customer Success</a></li>
+                                <li><a href="#faq" @click="scrollToSection('faq', $event)">Hubungi Customer Success</a></li>
                             </ul>
                         </div>
                     </div>

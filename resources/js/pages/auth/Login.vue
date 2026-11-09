@@ -135,7 +135,7 @@ defineProps<{
             <span>Masuk dengan Google</span>
         </button>
 
-        <div class="pt-2 text-left text-sm text-[#2C2C2C]/70">
+        <div class="pt-2 text-center text-sm text-[#2C2C2C]/70">
             Belum punya akun?
             <TextLink :href="register()" :tabindex="6" class="ml-1 font-semibold !no-underline">Daftar Akun</TextLink>
         </div>

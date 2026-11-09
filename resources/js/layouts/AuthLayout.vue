@@ -48,19 +48,19 @@ const props = withDefaults(
 
         <div
             :class="[
-                'relative flex min-h-svh lg:h-full flex-col items-center px-4 sm:px-8 lg:px-12 bg-white overflow-y-auto',
+                'relative flex min-h-svh lg:h-full flex-col items-center px-6 sm:px-8 lg:px-12 bg-white overflow-y-auto',
                 props.align === 'center'
-                    ? 'justify-center py-8 sm:py-12'
-                    : 'justify-start pt-6 pb-8 sm:pt-8 sm:pb-10',
+                    ? 'justify-start lg:justify-center pt-8 pb-10 sm:pt-10 lg:py-12'
+                    : 'justify-start pt-8 pb-10 sm:pt-10 sm:pb-12',
             ]"
         >
-            <div class="w-full max-w-[520px] mx-auto">
-                <div class="flex flex-col items-start text-left mb-4 sm:mb-5">
-                    <Link :href="home()" class="group mb-4.5 inline-flex transition-transform hover:scale-102">
-                        <AppLogo layout="horizontal" size="lg" />
+            <div class="w-full max-w-[480px] sm:max-w-[520px] mx-auto">
+                <div class="flex flex-col items-start text-left mb-5 sm:mb-6">
+                    <Link :href="home()" class="group mb-4 inline-flex transition-transform hover:scale-102">
+                        <AppLogo layout="horizontal" size="md" />
                     </Link>
                     <h1 class="text-2xl sm:text-3xl font-extrabold text-[#2C2C2C] tracking-tight leading-tight">{{ title }}</h1>
-                    <p v-if="description" class="text-sm sm:text-base text-stone-500 mt-1 leading-relaxed">{{ description }}</p>
+                    <p v-if="description" class="text-xs sm:text-sm text-stone-500 mt-1 sm:mt-1.5 leading-relaxed">{{ description }}</p>
                 </div>
 
                 <slot />
