@@ -814,7 +814,7 @@ const confirmBulkDelete = () => {
                                 :checked="columnVisibility.courier"
                                 @update:checked="(val) => (columnVisibility.courier = val)"
                             >
-                                Ekspedisi
+                                Ekspedisi & Metode
                             </DropdownMenuCheckboxItem>
                             <DropdownMenuCheckboxItem
                                 :checked="columnVisibility.waybill"
@@ -950,9 +950,23 @@ const confirmBulkDelete = () => {
                                 </div>
                             </div>
                             <div class="mt-2.5 flex items-center justify-between gap-3 text-xs text-stone-500">
-                                <span class="truncate font-medium">
-                                    {{ item.courier_service_name }} · {{ formatWeight(item.weight) }}
-                                </span>
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    <span class="truncate font-medium">
+                                        {{ item.courier_service_name }} · {{ formatWeight(item.weight) }}
+                                    </span>
+                                    <span
+                                        v-if="item.payment_method === 'cod'"
+                                        class="shrink-0 px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70 uppercase"
+                                    >
+                                        COD
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="shrink-0 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/60 uppercase"
+                                    >
+                                        Non-COD
+                                    </span>
+                                </div>
                                 <span class="text-sm font-bold text-stone-900 tabular-nums shrink-0">
                                     Rp {{ Number(item.total_amount).toLocaleString('id-ID') }}
                                 </span>
@@ -1042,9 +1056,16 @@ const confirmBulkDelete = () => {
                                 <button
                                     type="button"
                                     @click="toggleSort('courier')"
-                                    class="group/th inline-flex items-center gap-1.5 text-sm font-semibold text-stone-800 hover:text-[#853953] cursor-pointer select-none"
+                                    class="group/th inline-flex items-center gap-2 text-left cursor-pointer select-none"
                                 >
-                                    <span>Ekspedisi</span>
+                                    <div class="flex flex-col leading-tight">
+                                        <span class="text-sm font-semibold text-stone-800 group-hover/th:text-[#853953] transition-colors">
+                                            Ekspedisi
+                                        </span>
+                                        <span class="text-sm font-semibold text-stone-800 group-hover/th:text-[#853953] transition-colors mt-0.5">
+                                            Metode
+                                        </span>
+                                    </div>
                                     <ArrowUp v-if="sortField === 'courier' && sortDirection === 'asc'" class="size-3.5 text-[#853953]" />
                                     <ArrowDown v-else-if="sortField === 'courier' && sortDirection === 'desc'" class="size-3.5 text-[#853953]" />
                                     <ArrowUpDown v-else class="size-3.5 text-stone-300 group-hover/th:text-stone-500 transition-colors" />
@@ -1167,24 +1188,40 @@ const confirmBulkDelete = () => {
                             </TableCell>
 
                             <TableCell v-if="columnVisibility.courier">
-                                <div class="flex items-center gap-2.5">
-                                    <div class="h-6 w-11 bg-white rounded border border-stone-200/80 p-0.5 flex items-center justify-center shrink-0">
-                                        <img
-                                            v-if="getCourierLogo(item.courier_code || item.courier_service_name)"
-                                            :src="getCourierLogo(item.courier_code || item.courier_service_name)!"
-                                            :alt="item.courier_code"
-                                            class="max-h-4 max-w-full object-contain"
-                                        />
-                                        <span v-else class="text-xs font-bold text-stone-600 uppercase">
-                                            {{ item.courier_code }}
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-5.5 w-10 bg-white rounded border border-stone-200/80 p-0.5 flex items-center justify-center shrink-0">
+                                            <img
+                                                v-if="getCourierLogo(item.courier_code || item.courier_service_name)"
+                                                :src="getCourierLogo(item.courier_code || item.courier_service_name)!"
+                                                :alt="item.courier_code"
+                                                class="max-h-3.5 max-w-full object-contain"
+                                            />
+                                            <span v-else class="text-[11px] font-bold text-stone-600 uppercase">
+                                                {{ item.courier_code }}
+                                            </span>
+                                        </div>
+                                        <span
+                                            class="text-sm font-semibold text-stone-800 truncate max-w-[115px]"
+                                            :title="item.courier_service_name"
+                                        >
+                                            {{ excerptText(item.courier_service_name, 14) }}
                                         </span>
                                     </div>
-                                    <span
-                                        class="text-sm font-semibold text-stone-800 truncate max-w-[115px]"
-                                        :title="item.courier_service_name"
-                                    >
-                                        {{ excerptText(item.courier_service_name, 14) }}
-                                    </span>
+                                    <div class="flex items-center">
+                                        <span
+                                            v-if="item.payment_method === 'cod'"
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70 tracking-wide uppercase"
+                                        >
+                                            COD
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/60 tracking-wide uppercase"
+                                        >
+                                            Non-COD
+                                        </span>
+                                    </div>
                                 </div>
                             </TableCell>
 

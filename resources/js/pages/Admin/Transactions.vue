@@ -417,6 +417,7 @@ const triggerExcelExport = (
             { header: 'No. HP Penerima', align: 'left', type: 'text', formatter: (item) => item.recipient_phone ? String(item.recipient_phone).trim() : '-' },
             { header: 'Tujuan', align: 'left', type: 'text', formatter: (item) => item.destination_area_name || item.destination_address || '-' },
             { header: 'Ekspedisi', align: 'left', type: 'text', formatter: (item) => `${item.courier_code ? item.courier_code.toUpperCase() + ' - ' : ''}${item.courier_service_name}` },
+            { header: 'Metode Bayar', align: 'center', type: 'text', formatter: (item) => item.payment_method === 'cod' ? 'COD (Bayar di Tempat)' : 'Non-COD (Online)' },
             { header: 'No. Resi (AWB)', align: 'left', type: 'text', formatter: (item) => item.waybill_number || '-' },
             { header: 'Berat (gr)', align: 'right', type: 'number', formatter: (item) => item.weight || 1000 },
             { header: 'Ongkir (Rp)', align: 'right', type: 'currency', formatter: (item) => Number(item.shipping_fee || 0).toLocaleString('id-ID') },
@@ -654,7 +655,7 @@ const handleExportAllFiltered = async () => {
                                 :checked="columnVisibility.courier"
                                 @update:checked="(val) => (columnVisibility.courier = val)"
                             >
-                                Ekspedisi
+                                Ekspedisi & Metode
                             </DropdownMenuCheckboxItem>
                             <DropdownMenuCheckboxItem
                                 :checked="columnVisibility.waybill"
@@ -814,9 +815,16 @@ const handleExportAllFiltered = async () => {
                                 <button
                                     type="button"
                                     @click="toggleSort('courier')"
-                                    class="group/th inline-flex items-center gap-1.5 text-sm font-semibold text-stone-800 hover:text-[#853953] transition-colors cursor-pointer select-none"
+                                    class="group/th inline-flex items-center gap-2 text-left cursor-pointer select-none"
                                 >
-                                    <span>Ekspedisi</span>
+                                    <div class="flex flex-col leading-tight">
+                                        <span class="text-sm font-semibold text-stone-800 group-hover/th:text-[#853953] transition-colors">
+                                            Ekspedisi
+                                        </span>
+                                        <span class="text-sm font-semibold text-stone-800 group-hover/th:text-[#853953] transition-colors mt-0.5">
+                                            Metode
+                                        </span>
+                                    </div>
                                     <ArrowUp v-if="sortField === 'courier' && sortDirection === 'asc'" class="size-3.5 text-[#853953]" />
                                     <ArrowDown v-else-if="sortField === 'courier' && sortDirection === 'desc'" class="size-3.5 text-[#853953]" />
                                     <ArrowUpDown v-else class="size-3.5 text-stone-300 group-hover/th:text-stone-500 transition-colors" />
@@ -936,24 +944,40 @@ const handleExportAllFiltered = async () => {
                             </TableCell>
 
                             <TableCell v-if="columnVisibility.courier">
-                                <div class="flex items-center gap-2.5">
-                                    <div class="h-6 w-11 bg-white rounded border border-stone-200/80 p-0.5 flex items-center justify-center shrink-0">
-                                        <img
-                                            v-if="getCourierLogo(item.courier_code || item.courier_service_name)"
-                                            :src="getCourierLogo(item.courier_code || item.courier_service_name)!"
-                                            :alt="item.courier_service_name"
-                                            class="max-h-4 max-w-full object-contain"
-                                        />
-                                        <span v-else class="text-xs font-bold text-stone-600 uppercase">
-                                             {{ item.courier_service_name?.slice(0, 3) }}
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-5.5 w-10 bg-white rounded border border-stone-200/80 p-0.5 flex items-center justify-center shrink-0">
+                                            <img
+                                                v-if="getCourierLogo(item.courier_code || item.courier_service_name)"
+                                                :src="getCourierLogo(item.courier_code || item.courier_service_name)!"
+                                                :alt="item.courier_service_name"
+                                                class="max-h-3.5 max-w-full object-contain"
+                                            />
+                                            <span v-else class="text-[11px] font-bold text-stone-600 uppercase">
+                                                {{ item.courier_code || item.courier_service_name?.slice(0, 3) }}
+                                            </span>
+                                        </div>
+                                        <span
+                                            class="text-sm font-semibold text-stone-800 truncate max-w-[115px]"
+                                            :title="item.courier_service_name"
+                                        >
+                                            {{ excerptText(item.courier_service_name, 14) }}
                                         </span>
                                     </div>
-                                    <span
-                                        class="text-sm font-semibold text-stone-800 truncate max-w-[115px]"
-                                        :title="item.courier_service_name"
-                                    >
-                                        {{ excerptText(item.courier_service_name, 14) }}
-                                    </span>
+                                    <div class="flex items-center">
+                                        <span
+                                            v-if="item.payment_method === 'cod'"
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/70 tracking-wide uppercase"
+                                        >
+                                            COD
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/60 tracking-wide uppercase"
+                                        >
+                                            Non-COD
+                                        </span>
+                                    </div>
                                 </div>
                             </TableCell>
 
