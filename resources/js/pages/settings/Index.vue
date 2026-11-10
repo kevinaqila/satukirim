@@ -108,9 +108,9 @@ onMounted(() => {
                     :href="logout()"
                     @click="handleLogout"
                     as="button"
-                    class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white border border-red-200 hover:bg-red-50 active:bg-red-100 text-red-600 font-semibold text-xs sm:text-sm transition-colors cursor-pointer shadow-2xs"
+                    class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white border border-stone-200/80 hover:bg-stone-50 active:bg-stone-100 text-stone-700 hover:text-red-600 font-semibold text-xs sm:text-sm transition-colors cursor-pointer shadow-2xs"
                 >
-                    <LogOut class="size-4" />
+                    <LogOut class="size-4 text-stone-400" />
                     Keluar dari Akun
                 </Link>
             </div>
