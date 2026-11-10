@@ -162,6 +162,32 @@ const showWithdrawModal = ref(false);
 const openWithdrawModal = () => {
     showWithdrawModal.value = true;
 };
+
+const getCodFundStatus = (status: string) => {
+    const s = (status || '').toLowerCase().trim();
+    if (s === 'delivered') {
+        return {
+            label: 'Masuk Saldo',
+            textClass: 'text-emerald-600',
+        };
+    }
+    if (['cancelled', 'rejected', 'courier_not_found'].includes(s)) {
+        return {
+            label: 'Dibatalkan',
+            textClass: 'text-rose-600',
+        };
+    }
+    if (s === 'returned') {
+        return {
+            label: 'Retur (Batal)',
+            textClass: 'text-amber-700',
+        };
+    }
+    return {
+        label: 'Tertahan',
+        textClass: 'text-stone-600',
+    };
+};
 </script>
 
 <template>
@@ -276,9 +302,9 @@ const openWithdrawModal = () => {
 
                                     <span
                                         class="text-xs font-bold shrink-0 whitespace-nowrap"
-                                        :class="item.status === 'delivered' ? 'text-primary' : 'text-stone-600'"
+                                        :class="getCodFundStatus(item.status).textClass"
                                     >
-                                        {{ item.status === 'delivered' ? 'Masuk Saldo' : 'Tertahan' }}
+                                        {{ getCodFundStatus(item.status).label }}
                                     </span>
                                 </div>
 
@@ -435,9 +461,9 @@ const openWithdrawModal = () => {
                                     <TableCell class="text-center whitespace-nowrap">
                                         <span
                                             class="text-sm font-bold"
-                                            :class="item.status === 'delivered' ? 'text-primary' : 'text-stone-600'"
+                                            :class="getCodFundStatus(item.status).textClass"
                                         >
-                                            {{ item.status === 'delivered' ? 'Masuk Saldo' : 'Tertahan' }}
+                                            {{ getCodFundStatus(item.status).label }}
                                         </span>
                                     </TableCell>
 

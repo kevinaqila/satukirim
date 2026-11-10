@@ -91,16 +91,9 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function create(Request $request): Response|RedirectResponse
+    public function create(Request $request): Response
     {
         $stores = $request->user()->stores()->orderByDesc('is_default')->get();
-
-        if ($stores->isEmpty()) {
-            return redirect()->route('stores.index')->with('toast', [
-                'type' => 'warning',
-                'message' => 'Silakan buat toko atau alamat pengirim terlebih dahulu!',
-            ]);
-        }
 
         return Inertia::render('Shipments/Create', [
             'stores' => $stores,
@@ -221,6 +214,26 @@ class ShipmentController extends Controller
                     'biteship_order_id' => $biteshipResult['biteship_order_id'] ?? null,
                     'waybill_number' => $biteshipResult['waybill_number'] ?: $shipment->waybill_number,
                 ]);
+            } else {
+                $errorMessage = $biteshipResult['message'] ?? 'Gagal membuat pesanan ke kurir Biteship.';
+                $history = $shipment->tracking_history ?? [];
+                $history[] = [
+                    'status' => 'cancelled',
+                    'note' => 'Gagal request penjemputan COD: '.$errorMessage,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $shipment->update([
+                    'status' => 'cancelled',
+                    'tracking_history' => $history,
+                ]);
+
+                $request->user()->getOrCreateWallet()->syncBalances();
+                Wallet::syncPlatformBalances();
+
+                return redirect()->route('shipments.show', $shipment)->with('toast', [
+                    'type' => 'error',
+                    'message' => 'Pesanan COD gagal diproses kurir: '.$errorMessage,
+                ]);
             }
 
             $request->user()->getOrCreateWallet()->syncBalances();
@@ -244,7 +257,7 @@ class ShipmentController extends Controller
             $shipment->refresh();
         }
 
-        if (($shipment->status === 'paid' || $shipment->payment_method === 'cod') && empty($shipment->biteship_order_id)) {
+        if (($shipment->status === 'paid' || $shipment->payment_method === 'cod') && empty($shipment->biteship_order_id) && $shipment->status !== 'cancelled') {
             $biteshipResult = $this->biteship->createOrder($shipment);
             if (! empty($biteshipResult['success'])) {
                 $shipment->update([
@@ -314,7 +327,7 @@ class ShipmentController extends Controller
                     $shipment->update($showUpdates);
                     $shipment->refresh();
 
-                    if (in_array($mapped, ['delivered', 'cancelled'], true)) {
+                    if (in_array($mapped, ['delivered', 'cancelled', 'rejected', 'courier_not_found', 'returned'], true)) {
                         $shipment->user?->getOrCreateWallet()->syncBalances();
                         \App\Models\Wallet::syncPlatformBalances();
                     }

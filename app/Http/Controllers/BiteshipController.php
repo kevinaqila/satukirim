@@ -105,7 +105,7 @@ class BiteshipController extends Controller
         if (! empty($updates)) {
             $shipment->update($updates);
 
-            if (isset($updates['status']) && in_array($updates['status'], ['delivered', 'cancelled'], true)) {
+            if (isset($updates['status']) && in_array($updates['status'], ['delivered', 'cancelled', 'rejected', 'courier_not_found', 'returned'], true)) {
                 $shipment->user?->getOrCreateWallet()->syncBalances();
                 Wallet::syncPlatformBalances();
             }
