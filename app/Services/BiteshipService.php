@@ -316,12 +316,10 @@ class BiteshipService
         }
 
         if ($shipment->payment_method === 'cod') {
-            $codAmount = (int) $shipment->item_value;
-            if ($codAmount > 0) {
-                $payload['cash_on_delivery'] = [
-                    'amount' => $codAmount,
-                    'type' => 'cash',
-                ];
+            $codTotalAmount = (int) ($shipment->item_value + $shipment->shipping_fee);
+            if ($codTotalAmount > 0) {
+                $payload['destination_cash_on_delivery'] = $codTotalAmount;
+                $payload['destination_cash_on_delivery_type'] = '7_days';
             }
         }
 

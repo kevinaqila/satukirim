@@ -182,6 +182,7 @@ test('biteship service can create order and returns order id and waybill', funct
         'courier_service_code' => 'reg',
         'weight' => 1000,
         'item_value' => 50000,
+        'shipping_fee' => 19000,
         'payment_method' => 'cod',
     ]);
 
@@ -197,8 +198,9 @@ test('biteship service can create order and returns order id and waybill', funct
 
         return $request->url() === 'https://api.biteship.com/v1/orders'
             && $data['courier_company'] === 'jne'
-            && isset($data['cash_on_delivery'])
-            && $data['cash_on_delivery']['amount'] === 50000;
+            && isset($data['destination_cash_on_delivery'])
+            && $data['destination_cash_on_delivery'] === 69000
+            && ($data['destination_cash_on_delivery_type'] ?? '') === '7_days';
     });
 });
 
