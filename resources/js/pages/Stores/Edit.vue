@@ -144,7 +144,7 @@ const submit = () => {
                                 <Input
                                     id="store-name"
                                     v-model="form.name"
-                                    placeholder="Contoh: Gudang Utama Surabaya"
+                                    placeholder="Gudang Utama Surabaya"
                                     class="h-10 text-xs sm:text-sm bg-white border-stone-200"
                                     required
                                 />

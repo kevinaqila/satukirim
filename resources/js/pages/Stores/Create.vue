@@ -123,12 +123,12 @@ const submit = () => {
                         <div class="space-y-2.5 sm:space-y-3">
                             <div class="space-y-1">
                                 <Label for="store-name" class="text-xs sm:text-sm font-semibold text-stone-800">
-                                    Nama Toko / Gudang <span class="text-red-500">*</span>
+                                    Nama Toko / Gudang<span class="text-red-500 ml-1">*</span>
                                 </Label>
                                 <Input
                                     id="store-name"
                                     v-model="form.name"
-                                    placeholder="Contoh: Gudang Utama Surabaya"
+                                    placeholder="Gudang Utama Surabaya"
                                     class="h-10 text-xs sm:text-sm bg-white border-stone-200"
                                     required
                                 />
@@ -139,7 +139,7 @@ const submit = () => {
 
                             <div class="space-y-1">
                                 <Label for="store-phone" class="text-xs sm:text-sm font-semibold text-stone-800">
-                                    Nomor WhatsApp Pengirim <span class="text-red-500">*</span>
+                                    Nomor WhatsApp Pengirim<span class="text-red-500 ml-1">*</span>
                                 </Label>
                                 <div class="relative">
                                     <Phone class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
@@ -160,7 +160,7 @@ const submit = () => {
                         <div class="space-y-2.5 sm:space-y-3">
                             <div class="space-y-1 relative area-dropdown-container">
                                 <Label for="store-area" class="text-xs sm:text-sm font-semibold text-stone-800 flex items-center justify-between">
-                                    <span>Kecamatan & Kota (Area Penjemputan) <span class="text-red-500">*</span></span>
+                                    <span>Kecamatan & Kota (Area Penjemputan)<span class="text-red-500 ml-1">*</span></span>
                                     <span class="text-[11px] text-[#853953] font-medium">Wajib pilih dari daftar</span>
                                 </Label>
 
@@ -206,7 +206,7 @@ const submit = () => {
 
                             <div class="space-y-1">
                                 <Label for="store-address" class="text-xs sm:text-sm font-semibold text-stone-800">
-                                    Alamat Lengkap & Patokan <span class="text-red-500">*</span>
+                                    Alamat Lengkap & Patokan<span class="text-red-500 ml-1">*</span>
                                 </Label>
                                 <textarea
                                     id="store-address"
