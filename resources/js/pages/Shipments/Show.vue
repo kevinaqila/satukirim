@@ -122,6 +122,15 @@ const formatPaymentMethod = (method: string | null): string => {
     return map[method.toLowerCase()] || method.replace(/_/g, ' ').toUpperCase();
 };
 
+const formatDestinationArea = (area?: string | null, postal?: string | null): string => {
+    if (!area) return postal ? `Kode Pos ${postal}` : '';
+    const cleanArea = area.trim();
+    if (postal && !cleanArea.includes(postal)) {
+        return `${cleanArea} (${postal})`;
+    }
+    return cleanArea;
+};
+
 const copyText = async (text: string): Promise<boolean> => {
     try {
         if (navigator.clipboard && window.isSecureContext) {
@@ -189,7 +198,7 @@ const handleSnapPayment = async () => {
         const res = await fetch(`/shipments/${props.shipment.id}/snap-token`);
         const data = await res.json();
 
-        if (data.token && (window as any).snap) {
+        if (data.token && !data.token.startsWith('SNAP_') && (window as any).snap) {
             (window as any).snap.pay(data.token, {
                 onSuccess: () => {
                     checkPaymentStatus();
@@ -205,6 +214,9 @@ const handleSnapPayment = async () => {
                     checkPaymentStatus();
                 },
             });
+        } else if (!data.token || data.token.startsWith('SNAP_')) {
+            alert('Tidak dapat memuat sesi pembayaran Midtrans. Pastikan koneksi internet aktif dan Server Key Midtrans sudah valid.');
+            checkPaymentStatus();
         } else {
             checkPaymentStatus();
         }
@@ -361,7 +373,43 @@ const trackingSteps = computed(() => {
             });
         }
 
+        const hasTerminalInHistory = history.some((h) => ['cancelled', 'rejected', 'courier_not_found'].includes(h.status));
+        if (['cancelled', 'rejected', 'courier_not_found'].includes(props.shipment.status) && !hasTerminalInHistory) {
+            const statusConfig = getShipmentStatus(props.shipment.status);
+            steps.push({
+                title: statusConfig.label,
+                note: 'Pengiriman dihentikan atau dibatalkan oleh pihak ekspedisi/sistem.',
+                time: props.shipment.updated_at || null,
+                active: true,
+                done: true,
+                variant: 'danger',
+            });
+        }
+
         return steps;
+    }
+
+    // Jika pesanan berstatus batal/gagal tanpa history kurir
+    if (['cancelled', 'rejected', 'courier_not_found'].includes(props.shipment.status)) {
+        const statusConfig = getShipmentStatus(props.shipment.status);
+        return [
+            {
+                title: 'Pesanan Dibuat',
+                note: 'Pesanan tercatat di sistem SatuKirim',
+                time: props.shipment.created_at,
+                active: true,
+                done: true,
+                variant: 'neutral',
+            },
+            {
+                title: statusConfig.label,
+                note: 'Pengiriman gagal diproses ke kurir atau dibatalkan.',
+                time: props.shipment.updated_at || null,
+                active: true,
+                done: true,
+                variant: 'danger',
+            },
+        ];
     }
 
     // Default estimasi milestones jika data history kurir belum masuk (misal paket baru dibuat)
@@ -542,41 +590,53 @@ const trackingSteps = computed(() => {
                     </div>
                 </div>
 
-                <div class="bg-white border border-stone-200 rounded-lg p-4 md:p-5 shadow-2xs">
-                    <h2 class="text-xs md:text-sm font-bold text-stone-500 uppercase tracking-wider mb-3">Rute Pengiriman</h2>
+                <div class="bg-white border border-stone-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
+                    <h2 class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Rute Pengiriman</h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                        <div class="space-y-1.5">
-                            <div class="text-xs md:text-sm font-semibold text-stone-400">Pengirim (Toko Asal)</div>
-                            <div class="text-sm md:text-base font-semibold text-stone-900">{{ shipment.store?.name }}</div>
-                            <div class="text-xs md:text-sm text-stone-600">{{ shipment.store?.phone }}</div>
-                            <div class="text-xs md:text-sm text-stone-600 leading-relaxed pt-1">
-                                {{ shipment.store?.address }}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
+                        <div>
+                            <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                                Pengirim (Toko Asal)
                             </div>
-                            <div v-if="shipment.store?.area_name" class="text-xs md:text-sm text-stone-400 pt-0.5">
-                                {{ shipment.store?.area_name }}
+                            <div class="text-sm font-bold text-stone-900 leading-snug">
+                                {{ shipment.store?.name || 'Toko Pengirim' }}
+                            </div>
+                            <div v-if="shipment.store?.phone" class="text-xs text-stone-500 font-medium">
+                                {{ shipment.store.phone }}
+                            </div>
+                            <div class="text-xs text-stone-600 leading-snug mt-1">
+                                <div>{{ shipment.store?.address }}</div>
+                                <div v-if="shipment.store?.area_name" class="text-stone-400">
+                                    {{ shipment.store.area_name }}
+                                </div>
                             </div>
                         </div>
 
-                        <div class="space-y-1.5">
-                            <div class="flex items-center justify-between">
-                                <div class="text-xs md:text-sm font-semibold text-stone-400">Penerima (Tujuan)</div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
+                                    Penerima (Tujuan)
+                                </div>
                                 <a
                                     :href="`https://wa.me/${shipment.recipient_phone.replace(/\D/g, '')}`"
                                     target="_blank"
-                                    class="text-xs md:text-sm text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1"
+                                    class="text-xs text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1 transition-colors"
                                 >
-                                    Chat WhatsApp
-                                    <ExternalLink class="size-3.5" />
+                                    <span>Chat WhatsApp</span>
+                                    <ExternalLink class="size-3" />
                                 </a>
                             </div>
-                            <div class="text-sm md:text-base font-semibold text-stone-900">{{ shipment.recipient_name }}</div>
-                            <div class="text-xs md:text-sm text-stone-600">{{ shipment.recipient_phone }}</div>
-                            <div class="text-xs md:text-sm text-stone-600 leading-relaxed pt-1">
-                                {{ shipment.destination_address }}
+                            <div class="text-sm font-bold text-stone-900 leading-snug">
+                                {{ shipment.recipient_name }}
                             </div>
-                            <div class="text-xs md:text-sm text-stone-400 pt-0.5">
-                                {{ shipment.destination_area_name }} ({{ shipment.destination_postal_code || '-' }})
+                            <div class="text-xs text-stone-500 font-medium">
+                                {{ shipment.recipient_phone }}
+                            </div>
+                            <div class="text-xs text-stone-600 leading-snug mt-1">
+                                <div>{{ shipment.destination_address }}</div>
+                                <div class="text-stone-400">
+                                    {{ formatDestinationArea(shipment.destination_area_name, shipment.destination_postal_code) }}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -655,14 +715,11 @@ const trackingSteps = computed(() => {
                                         Rp {{ Math.max(0, Number(shipment.item_value || 0) - (shipment.platform_fee || 1000)).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
-                                <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] md:text-xs text-stone-500 mt-1.5 pt-1.5 border-t border-stone-100">
+                                <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] md:text-xs text-stone-500 mt-1.5">
                                     <span class="inline-flex items-center gap-1 text-amber-700 font-medium">
                                         <CheckCircle2 class="size-3.5 text-amber-600" />
                                         Metode COD (Ditagih Tunai oleh Kurir)
                                     </span>
-                                    <Link href="/wallet" class="text-primary hover:underline font-semibold">
-                                        Lihat Saldo COD &rarr;
-                                    </Link>
                                 </div>
                             </template>
                         </div>
