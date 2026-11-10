@@ -59,6 +59,13 @@ class StoreController extends Controller
         $validated['is_default'] = $isDefault;
         $request->user()->stores()->create($validated);
 
+        if ($request->boolean('from_shipment')) {
+            return redirect()->route('shipments.create')->with('toast', [
+                'type' => 'success',
+                'message' => 'Toko berhasil ditambahkan dan siap digunakan!',
+            ]);
+        }
+
         return redirect()->route('stores.index')->with('toast', [
             'type' => 'success',
             'message' => 'Toko berhasil ditambahkan!',

@@ -11,6 +11,7 @@ import {
     MapPin,
     Package,
     Phone,
+    Plus,
     RefreshCw,
     Search,
     Store,
@@ -21,6 +22,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppTopBar from '@/components/AppTopBar.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getCourierLogo } from '@/lib/status';
@@ -90,6 +99,85 @@ const selectedStore = computed(() => {
     return props.stores.find((s) => s.id === Number(form.store_id)) || props.stores[0];
 });
 
+watch(
+    () => props.stores,
+    (newStores) => {
+        if (newStores.length > 0 && (!form.store_id || form.store_id === 0)) {
+            const def = newStores.find((s) => s.is_default) || newStores[0];
+            form.store_id = def.id;
+        }
+    },
+    { immediate: true },
+);
+
+const showAddStoreModal = ref(props.stores.length === 0);
+
+const storeForm = useForm({
+    name: '',
+    phone: '',
+    address: '',
+    postal_code: '',
+    biteship_area_id: '',
+    area_name: '',
+    is_default: true,
+    from_shipment: true,
+});
+
+const storeAreaQuery = ref('');
+const storeAreaResults = ref<any[]>([]);
+const isSearchingStoreArea = ref(false);
+const showStoreAreaDropdown = ref(false);
+let storeAreaTimer: any = null;
+
+watch(storeAreaQuery, (val) => {
+    if (!val || val.length < 2) {
+        storeAreaResults.value = [];
+        showStoreAreaDropdown.value = false;
+        return;
+    }
+
+    if (storeForm.area_name && val === storeForm.area_name) {
+        return;
+    }
+
+    clearTimeout(storeAreaTimer);
+    storeAreaTimer = setTimeout(async () => {
+        isSearchingStoreArea.value = true;
+        try {
+            const res = await fetch(`/api/public/areas?q=${encodeURIComponent(val)}`);
+            const data = await res.json();
+            storeAreaResults.value = data.areas || [];
+            showStoreAreaDropdown.value = storeAreaResults.value.length > 0;
+        } catch {
+            storeAreaResults.value = [];
+            showStoreAreaDropdown.value = false;
+        } finally {
+            isSearchingStoreArea.value = false;
+        }
+    }, 350);
+});
+
+const selectStoreArea = (item: any) => {
+    storeForm.biteship_area_id = item.id;
+    storeForm.area_name = item.name;
+    storeAreaQuery.value = item.name;
+    if (item.postal_code) {
+        storeForm.postal_code = String(item.postal_code);
+    }
+    showStoreAreaDropdown.value = false;
+};
+
+const submitNewStore = () => {
+    storeForm.post('/stores', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showAddStoreModal.value = false;
+            storeForm.reset();
+            storeAreaQuery.value = '';
+        },
+    });
+};
+
 const selectStoreOption = (store: StoreOption) => {
     form.store_id = store.id;
     showStoreDropdown.value = false;
@@ -102,6 +190,9 @@ const handleOutsideClick = (e: MouseEvent) => {
     }
     if (!target.closest('.dest-area-dropdown-container')) {
         showDestAreaDropdown.value = false;
+    }
+    if (!target.closest('.store-area-dropdown-container')) {
+        showStoreAreaDropdown.value = false;
     }
 };
 
@@ -291,7 +382,26 @@ const submitOrder = () => {
                         </Link>
                     </div>
 
-                    <div class="store-dropdown-container relative space-y-2.5">
+                    <div v-if="stores.length === 0" class="rounded-lg border border-dashed border-stone-200 bg-stone-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <p class="text-xs sm:text-sm font-bold text-stone-900">
+                                Belum Ada Titik Penjemputan
+                            </p>
+                            <p class="text-xs text-stone-500 leading-relaxed">
+                                Tambahkan alamat toko atau gudang pertama Anda agar kurir dapat menjemput paket.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            @click="showAddStoreModal = true"
+                            class="bg-[#853953] hover:bg-[#6c2e43] text-white font-semibold text-xs sm:text-sm h-9 px-4 rounded-lg cursor-pointer shrink-0 self-start sm:self-center inline-flex items-center gap-1.5 shadow-2xs"
+                        >
+                            <Plus class="size-3.5" />
+                            <span>Tambah Toko</span>
+                        </Button>
+                    </div>
+
+                    <div v-else class="store-dropdown-container relative space-y-2.5">
                         <button
                             type="button"
                             @click="showStoreDropdown = !showStoreDropdown"
@@ -353,6 +463,17 @@ const submitOrder = () => {
                                 </div>
                                 <Check v-if="form.store_id === store.id" class="size-4 text-[#853953] shrink-0" />
                             </button>
+
+                            <div class="pt-1 border-t border-stone-100">
+                                <button
+                                    type="button"
+                                    @click="showStoreDropdown = false; showAddStoreModal = true"
+                                    class="w-full text-left px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold text-[#853953] hover:bg-stone-50 transition-colors cursor-pointer"
+                                >
+                                    <Plus class="size-3.5" />
+                                    <span>Tambah Titik Penjemputan Baru</span>
+                                </button>
+                            </div>
                         </div>
 
                         <div
@@ -801,5 +922,141 @@ const submitOrder = () => {
                 </div>
             </div>
         </form>
+
+        <Dialog :open="showAddStoreModal" @update:open="showAddStoreModal = $event">
+            <DialogContent
+                @pointer-down-outside="(e) => e.preventDefault()"
+                @interact-outside="(e) => e.preventDefault()"
+                class="sm:max-w-lg bg-white p-5 sm:p-6 rounded-xl border border-stone-200 shadow-xl max-h-[90vh] overflow-y-auto"
+            >
+                <DialogHeader class="text-left space-y-1">
+                    <div class="flex items-center gap-2.5">
+                        <div>
+                            <DialogTitle class="text-base sm:text-lg font-bold text-stone-900">
+                                {{ stores.length === 0 ? 'Atur Titik Penjemputan Pertama' : 'Tambah Titik Penjemputan' }}
+                            </DialogTitle>
+                            <DialogDescription class="text-xs text-stone-500">
+                                {{ stores.length === 0 ? 'Lengkapi data toko/gudang asal sebelum mulai mengirim paket.' : 'Tambahkan alamat penjemputan baru untuk pengiriman Anda.' }}
+                            </DialogDescription>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                <form @submit.prevent="submitNewStore" class="space-y-3.5 mt-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div class="space-y-1">
+                            <Label for="modal-store-name" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                Nama Toko / Gudang<span class="text-red-500 ml-1">*</span>
+                            </Label>
+                            <Input
+                                id="modal-store-name"
+                                v-model="storeForm.name"
+                                placeholder="Gudang Utama Surabaya"
+                                class="h-10 text-xs sm:text-sm bg-white border-stone-200"
+                                required
+                            />
+                            <InputError :message="storeForm.errors.name" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <Label for="modal-store-phone" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                Nomor WhatsApp Pengirim<span class="text-red-500 ml-1">*</span>
+                            </Label>
+                            <div class="relative">
+                                <Phone class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
+                                <Input
+                                    id="modal-store-phone"
+                                    v-model="storeForm.phone"
+                                    placeholder="081234567890"
+                                    class="h-10 pl-9 text-xs sm:text-sm bg-white border-stone-200"
+                                    required
+                                />
+                            </div>
+                            <InputError :message="storeForm.errors.phone" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-1 relative store-area-dropdown-container">
+                        <Label for="modal-store-area" class="text-xs sm:text-sm font-semibold text-stone-800 flex items-center justify-between">
+                            <span>Kecamatan & Kota Penjemputan<span class="text-red-500 ml-1">*</span></span>
+                            <span class="text-[11px] text-[#853953] font-medium">Wajib pilih dari daftar</span>
+                        </Label>
+
+                        <div class="relative">
+                            <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
+                            <Input
+                                id="modal-store-area"
+                                v-model="storeAreaQuery"
+                                placeholder="Ketik kelurahan atau kecamatan penjemputan..."
+                                class="h-10 pl-9 pr-9 text-xs sm:text-sm bg-white border-stone-200"
+                                autocomplete="off"
+                                @focus="storeAreaResults.length > 0 ? (showStoreAreaDropdown = true) : null"
+                            />
+                            <div v-if="isSearchingStoreArea" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                <Loader2 class="size-4 animate-spin text-[#853953]" />
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="showStoreAreaDropdown && storeAreaResults.length > 0"
+                            class="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white shadow-lg"
+                        >
+                            <div
+                                v-for="area in storeAreaResults"
+                                :key="area.id"
+                                @click="selectStoreArea(area)"
+                                class="p-2.5 hover:bg-stone-50 cursor-pointer border-b border-stone-100 last:border-none transition-colors"
+                            >
+                                <div class="text-xs sm:text-sm font-bold text-stone-900">
+                                    {{ area.name }}
+                                </div>
+                                <div class="text-[11px] text-stone-500">
+                                    {{ area.administrative_division_level_3_name }}, {{ area.administrative_division_level_2_name }}, {{ area.administrative_division_level_1_name }}
+                                    <span v-if="area.postal_code">({{ area.postal_code }})</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <span v-if="storeForm.errors.biteship_area_id" class="text-[11px] text-red-600 font-medium block">
+                            Pilih area penjemputan dari daftar pencarian.
+                        </span>
+                    </div>
+
+                    <div class="space-y-1">
+                        <Label for="modal-store-address" class="text-xs sm:text-sm font-semibold text-stone-800">
+                            Alamat Lengkap & Patokan<span class="text-red-500 ml-1">*</span>
+                        </Label>
+                        <textarea
+                            id="modal-store-address"
+                            v-model="storeForm.address"
+                            rows="2"
+                            placeholder="Jl. Raya Sukolilo No. 45, Ruko B3 (sebelah Bank BCA)"
+                            class="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-xs sm:text-sm text-stone-900 placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#853953] focus-visible:ring-offset-1"
+                            required
+                        />
+                        <InputError :message="storeForm.errors.address" />
+                    </div>
+
+                    <DialogFooter class="pt-2 gap-2 sm:justify-end">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showAddStoreModal = false"
+                            class="text-xs sm:text-sm h-9 sm:h-10 cursor-pointer border-stone-200"
+                        >
+                            Nanti Saja
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="storeForm.processing || !storeForm.biteship_area_id"
+                            class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 cursor-pointer"
+                        >
+                            <Loader2 v-if="storeForm.processing" class="mr-2 size-4 animate-spin" />
+                            <span>Simpan & Gunakan Toko</span>
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
