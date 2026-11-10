@@ -34,17 +34,16 @@ class MidtransService
     /**
      * Generate or retrieve Snap Token for a shipment order.
      */
-    public function getSnapToken(Shipment $shipment): string
+    public function getSnapToken(Shipment $shipment): ?string
     {
-        if ($shipment->snap_token) {
+        if ($shipment->snap_token && ! str_starts_with($shipment->snap_token, 'SNAP_FALLBACK_') && ! str_starts_with($shipment->snap_token, 'SNAP_MOCK_')) {
             return $shipment->snap_token;
         }
 
         if (empty($this->serverKey)) {
-            $mockToken = 'SNAP_MOCK_'.strtoupper(substr(md5($shipment->order_number), 0, 16));
-            $shipment->update(['snap_token' => $mockToken]);
+            Log::warning('Midtrans server key is empty, cannot generate Snap Token.');
 
-            return $mockToken;
+            return null;
         }
 
         try {
@@ -67,20 +66,26 @@ class MidtransService
                 ];
             }
 
-            $response = Http::withBasicAuth($this->serverKey, '')
+            $client = Http::withBasicAuth($this->serverKey, '')
                 ->acceptJson()
-                ->post("{$this->snapBaseUrl}/transactions", [
-                    'transaction_details' => [
-                        'order_id' => $shipment->order_number,
-                        'gross_amount' => (int) $shipment->total_amount,
-                    ],
-                    'customer_details' => [
-                        'first_name' => $shipment->user?->name ?? 'Merchant',
-                        'email' => $shipment->user?->email ?? 'merchant@satukirim.id',
-                        'phone' => $shipment->user?->phone ?? '081234567890',
-                    ],
-                    'item_details' => $itemDetails,
-                ]);
+                ->timeout(12);
+
+            if (! app()->isProduction()) {
+                $client->withoutVerifying();
+            }
+
+            $response = $client->post("{$this->snapBaseUrl}/transactions", [
+                'transaction_details' => [
+                    'order_id' => $shipment->order_number,
+                    'gross_amount' => (int) $shipment->total_amount,
+                ],
+                'customer_details' => [
+                    'first_name' => $shipment->user?->name ?? 'Merchant',
+                    'email' => $shipment->user?->email ?? 'merchant@satukirim.id',
+                    'phone' => $shipment->user?->phone ?? '081234567890',
+                ],
+                'item_details' => $itemDetails,
+            ]);
 
             if ($response->successful()) {
                 $token = (string) $response->json('token');
@@ -97,10 +102,7 @@ class MidtransService
             Log::error('Midtrans Snap request exception: '.$e->getMessage());
         }
 
-        $fallbackToken = 'SNAP_FALLBACK_'.strtoupper(substr(md5($shipment->order_number), 0, 16));
-        $shipment->update(['snap_token' => $fallbackToken]);
-
-        return $fallbackToken;
+        return null;
     }
 
     /**
@@ -169,10 +171,15 @@ class MidtransService
         }
 
         try {
-            $response = Http::withBasicAuth($this->serverKey, '')
+            $client = Http::withBasicAuth($this->serverKey, '')
                 ->acceptJson()
-                ->timeout(8)
-                ->get("{$this->apiBaseUrl}/{$shipment->order_number}/status");
+                ->timeout(8);
+
+            if (! app()->isProduction()) {
+                $client->withoutVerifying();
+            }
+
+            $response = $client->get("{$this->apiBaseUrl}/{$shipment->order_number}/status");
 
             if ($response->successful()) {
                 $data = $response->json();
