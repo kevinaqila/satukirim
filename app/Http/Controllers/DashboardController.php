@@ -29,7 +29,7 @@ class DashboardController extends Controller
             ? $this->getSuperAdminData($user, $metrics['total'], $metrics['total_volume'], $metrics['delivered'])
             : $this->getUmkmData($user);
 
-        $trendData = $this->calculateSevenDayTrend($isSuperAdmin, Carbon::today(), $shipmentQuery);
+        $trendData = $this->calculateSevenDayTrend($isSuperAdmin, Carbon::now('Asia/Jakarta'), $shipmentQuery);
 
         $allShipments = (clone $shipmentQuery)->get([
             'id', 'store_id', 'order_number', 'status', 'recipient_name',
@@ -260,6 +260,8 @@ class DashboardController extends Controller
      */
     private function calculateSevenDayTrend(bool $isSuperAdmin, Carbon $today, Builder|HasMany $shipmentQuery): array
     {
+        $tz = 'Asia/Jakarta';
+        $today = (clone $today)->setTimezone($tz)->startOfDay();
         $sevenDayTrend = [];
         $dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
@@ -273,40 +275,41 @@ class DashboardController extends Controller
             ];
         }
 
+        $startUtc = (clone $today)->subDays(6)->startOfDay()->setTimezone('UTC');
+
         if ($isSuperAdmin) {
-            $recent7DaysLogs = AuditLog::where('created_at', '>=', (clone $today)->subDays(6)->startOfDay())
+            $recent7DaysLogs = AuditLog::where('created_at', '>=', $startUtc)
                 ->get(['id', 'created_at']);
 
             foreach ($recent7DaysLogs as $l) {
-                $lDate = $l->created_at->toDateString();
+                $lDate = $l->created_at->timezone($tz)->toDateString();
                 if (isset($sevenDayTrend[$lDate])) {
                     $sevenDayTrend[$lDate]['count']++;
                 }
             }
 
-            $previous7DaysCount = AuditLog::whereBetween('created_at', [
-                (clone $today)->subDays(13)->startOfDay(),
-                (clone $today)->subDays(7)->endOfDay(),
-            ])->count();
+            $prevStartUtc = (clone $today)->subDays(13)->startOfDay()->setTimezone('UTC');
+            $prevEndUtc = (clone $today)->subDays(7)->endOfDay()->setTimezone('UTC');
 
+            $previous7DaysCount = AuditLog::whereBetween('created_at', [$prevStartUtc, $prevEndUtc])->count();
             $current7DaysCount = $recent7DaysLogs->count();
         } else {
             $recent7DaysShipments = (clone $shipmentQuery)
-                ->where('created_at', '>=', (clone $today)->subDays(6)->startOfDay())
+                ->where('created_at', '>=', $startUtc)
                 ->get(['id', 'created_at']);
 
             foreach ($recent7DaysShipments as $s) {
-                $sDate = $s->created_at->toDateString();
+                $sDate = $s->created_at->timezone($tz)->toDateString();
                 if (isset($sevenDayTrend[$sDate])) {
                     $sevenDayTrend[$sDate]['count']++;
                 }
             }
 
+            $prevStartUtc = (clone $today)->subDays(13)->startOfDay()->setTimezone('UTC');
+            $prevEndUtc = (clone $today)->subDays(7)->endOfDay()->setTimezone('UTC');
+
             $previous7DaysCount = (clone $shipmentQuery)
-                ->whereBetween('created_at', [
-                    (clone $today)->subDays(13)->startOfDay(),
-                    (clone $today)->subDays(7)->endOfDay(),
-                ])
+                ->whereBetween('created_at', [$prevStartUtc, $prevEndUtc])
                 ->count();
 
             $current7DaysCount = $recent7DaysShipments->count();

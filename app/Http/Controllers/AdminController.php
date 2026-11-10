@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Handlers\AuditHandler;
 use App\Models\AuditLog;
 use App\Models\Shipment;
 use App\Models\User;
-use App\Handlers\AuditHandler;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,11 +125,13 @@ class AdminController extends Controller
         }
 
         if ($dateFrom) {
-            $query->whereDate('created_at', '>=', $dateFrom);
+            $fromUtc = Carbon::parse($dateFrom, 'Asia/Jakarta')->startOfDay()->setTimezone('UTC');
+            $query->where('created_at', '>=', $fromUtc);
         }
 
         if ($dateTo) {
-            $query->whereDate('created_at', '<=', $dateTo);
+            $toUtc = Carbon::parse($dateTo, 'Asia/Jakarta')->endOfDay()->setTimezone('UTC');
+            $query->where('created_at', '<=', $toUtc);
         }
 
         if ($search) {
@@ -180,11 +183,13 @@ class AdminController extends Controller
         }
 
         if ($dateFrom) {
-            $query->whereDate('created_at', '>=', $dateFrom);
+            $fromUtc = Carbon::parse($dateFrom, 'Asia/Jakarta')->startOfDay()->setTimezone('UTC');
+            $query->where('created_at', '>=', $fromUtc);
         }
 
         if ($dateTo) {
-            $query->whereDate('created_at', '<=', $dateTo);
+            $toUtc = Carbon::parse($dateTo, 'Asia/Jakarta')->endOfDay()->setTimezone('UTC');
+            $query->where('created_at', '<=', $toUtc);
         }
 
         if ($search) {
@@ -229,11 +234,13 @@ class AdminController extends Controller
         }
 
         if ($dateFrom) {
-            $query->whereDate('created_at', '>=', $dateFrom);
+            $fromUtc = Carbon::parse($dateFrom, 'Asia/Jakarta')->startOfDay()->setTimezone('UTC');
+            $query->where('created_at', '>=', $fromUtc);
         }
 
         if ($dateTo) {
-            $query->whereDate('created_at', '<=', $dateTo);
+            $toUtc = Carbon::parse($dateTo, 'Asia/Jakarta')->endOfDay()->setTimezone('UTC');
+            $query->where('created_at', '<=', $toUtc);
         }
 
         if ($search) {
