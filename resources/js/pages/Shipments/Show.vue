@@ -38,6 +38,7 @@ export interface ShipmentDetail {
     item_description: string | null;
     item_category: string | null;
     item_value: number;
+    items?: Array<{ name: string; category?: string; qty?: number; weight?: number; value?: number }> | null;
     courier_code: string;
     courier_service_code: string;
     courier_service_name: string;
@@ -72,8 +73,6 @@ export interface ShipmentDetail {
 const props = defineProps<{
     shipment: ShipmentDetail;
     isSuperAdmin?: boolean;
-    midtransClientKey?: string;
-    midtransIsProduction?: boolean;
 }>();
 
 defineOptions({
@@ -101,7 +100,7 @@ const codRecipientTotal = computed(
 );
 
 const formatPaymentMethod = (method: string | null): string => {
-    if (!method) return 'Midtrans';
+    if (!method) return 'Xendit';
     const map: Record<string, string> = {
         cod: 'COD (Bayar di Tempat)',
         bca_va: 'BCA Virtual Account',
@@ -191,35 +190,27 @@ const checkPaymentStatus = () => {
     });
 };
 
-const handleSnapPayment = async () => {
+const handleXenditPayment = async () => {
     isPaying.value = true;
 
     try {
-        const res = await fetch(`/shipments/${props.shipment.id}/snap-token`);
+        const res = await fetch(`/shipments/${props.shipment.id}/pay`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+            },
+        });
         const data = await res.json();
 
-        if (data.token && !data.token.startsWith('SNAP_') && (window as any).snap) {
-            (window as any).snap.pay(data.token, {
-                onSuccess: () => {
-                    checkPaymentStatus();
-                },
-                onPending: () => {
-                    checkPaymentStatus();
-                },
-                onError: () => {
-                    alert('Pembayaran gagal atau dibatalkan.');
-                },
-                onClose: () => {
-                    isPaying.value = false;
-                    checkPaymentStatus();
-                },
-            });
-        } else if (!data.token || data.token.startsWith('SNAP_')) {
-            alert('Tidak dapat memuat sesi pembayaran Midtrans. Pastikan koneksi internet aktif dan Server Key Midtrans sudah valid.');
-            checkPaymentStatus();
-        } else {
-            checkPaymentStatus();
+        if (data.invoice_url) {
+            window.location.href = data.invoice_url;
+            return;
         }
+
+        alert(data.message || 'Gagal memuat sesi pembayaran Xendit.');
+        checkPaymentStatus();
     } catch {
         checkPaymentStatus();
     } finally {
@@ -228,8 +219,6 @@ const handleSnapPayment = async () => {
 };
 
 onMounted(() => {
-    let shouldAutoPay = false;
-
     if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('print') === '1' && props.shipment.status !== 'pending_payment') {
@@ -239,36 +228,11 @@ onMounted(() => {
         }
 
         if (urlParams.get('pay') === '1' && props.shipment.status === 'pending_payment') {
-            shouldAutoPay = true;
             window.history.replaceState({}, '', window.location.pathname);
+            setTimeout(() => {
+                handleXenditPayment();
+            }, 200);
         }
-    }
-
-    if (props.shipment.status === 'pending_payment') {
-        if ((window as any).snap) {
-            if (shouldAutoPay) {
-                setTimeout(() => {
-                    handleSnapPayment();
-                }, 200);
-            }
-            return;
-        }
-
-        const snapScript = document.createElement('script');
-        const scriptUrl = props.midtransIsProduction
-            ? 'https://app.midtrans.com/snap/snap.js'
-            : 'https://app.sandbox.midtrans.com/snap/snap.js';
-        snapScript.src = scriptUrl;
-        snapScript.setAttribute('data-client-key', props.midtransClientKey || 'SB-Mid-client-sample');
-        if (shouldAutoPay) {
-            snapScript.onload = () => {
-                handleSnapPayment();
-            };
-            snapScript.onerror = () => {
-                handleSnapPayment();
-            };
-        }
-        document.head.appendChild(snapScript);
     }
 });
 
@@ -412,7 +376,6 @@ const trackingSteps = computed(() => {
         ];
     }
 
-    // Default estimasi milestones jika data history kurir belum masuk (misal paket baru dibuat)
     return [
         {
             title: 'Pesanan Dibuat',
@@ -567,7 +530,7 @@ const trackingSteps = computed(() => {
                         </div>
                         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
                             <Button
-                                @click="handleSnapPayment"
+                                @click="handleXenditPayment"
                                 :disabled="isPaying"
                                 class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs md:text-sm font-semibold h-8.5 sm:h-9 md:h-10 px-2.5 sm:px-4 rounded-md shadow-xs cursor-pointer"
                             >
@@ -591,14 +554,14 @@ const trackingSteps = computed(() => {
                 </div>
 
                 <div class="bg-white border border-stone-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
-                    <h2 class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Rute Pengiriman</h2>
+                    <h2 class="text-xs font-semibold text-stone-600 uppercase tracking-wider mb-2">Rute Pengiriman</h2>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
                         <div>
-                            <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                            <div class="text-xs font-medium text-stone-500 uppercase tracking-wider mb-1">
                                 Pengirim (Toko Asal)
                             </div>
-                            <div class="text-sm font-bold text-stone-900 leading-snug">
+                            <div class="text-sm font-semibold text-stone-900 leading-snug">
                                 {{ shipment.store?.name || 'Toko Pengirim' }}
                             </div>
                             <div v-if="shipment.store?.phone" class="text-xs text-stone-500 font-medium">
@@ -614,19 +577,19 @@ const trackingSteps = computed(() => {
 
                         <div>
                             <div class="flex items-center justify-between mb-1">
-                                <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
+                                <div class="text-xs font-medium text-stone-500 uppercase tracking-wider">
                                     Penerima (Tujuan)
                                 </div>
                                 <a
                                     :href="`https://wa.me/${shipment.recipient_phone.replace(/\D/g, '')}`"
                                     target="_blank"
-                                    class="text-xs text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1 transition-colors"
+                                    class="text-xs text-[#853953] hover:underline font-semibold inline-flex items-center gap-1 transition-colors"
                                 >
                                     <span>Chat WhatsApp</span>
                                     <ExternalLink class="size-3" />
                                 </a>
                             </div>
-                            <div class="text-sm font-bold text-stone-900 leading-snug">
+                            <div class="text-sm font-semibold text-stone-900 leading-snug">
                                 {{ shipment.recipient_name }}
                             </div>
                             <div class="text-xs text-stone-500 font-medium">
@@ -643,9 +606,25 @@ const trackingSteps = computed(() => {
                 </div>
 
                 <div class="bg-white border border-stone-200 rounded-lg p-4 md:p-5 shadow-2xs">
-                    <h2 class="text-xs md:text-sm font-bold text-stone-500 uppercase tracking-wider mb-3">Rincian Paket & Ongkir</h2>
+                    <h2 class="text-xs md:text-sm font-semibold text-stone-600 uppercase tracking-wider mb-3">Rincian Paket & Ongkir</h2>
 
-                    <div class="grid grid-cols-3 gap-2 py-2.5 px-3.5 rounded bg-stone-50 text-xs md:text-sm mb-3">
+                    <div v-if="shipment.items && shipment.items.length > 0" class="rounded bg-stone-50 p-3 mb-3 space-y-2">
+                        <div class="flex items-center justify-between text-xs text-stone-500 font-semibold border-b border-stone-200/60 pb-1.5">
+                            <span>Rincian Barang ({{ shipment.items.length }})</span>
+                            <span>{{ formatWeight(shipment.weight) }} (Rp {{ Number(shipment.item_value || 0).toLocaleString('id-ID') }})</span>
+                        </div>
+                        <div class="space-y-1.5 text-xs">
+                            <div v-for="(it, i) in shipment.items" :key="i" class="flex items-center justify-between">
+                                <span class="font-medium text-stone-800">
+                                    {{ it.name }} <span class="text-stone-500">({{ it.qty || 1 }}x)</span>
+                                </span>
+                                <span class="text-stone-600 tabular-nums">
+                                    {{ it.weight ? `${it.weight}g, ` : '' }}Rp {{ Number((it.qty || 1) * (it.value || 0)).toLocaleString('id-ID') }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="grid grid-cols-3 gap-2 py-2.5 px-3.5 rounded bg-stone-50 text-xs md:text-sm mb-3">
                         <div>
                             <span class="text-stone-400 block text-xs">Berat</span>
                             <span class="font-semibold text-stone-800">{{ formatWeight(shipment.weight) }}</span>
@@ -681,9 +660,9 @@ const trackingSteps = computed(() => {
                                         Rp {{ Number(shipment.total_amount).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
-                                <div v-if="shipment.paid_at" class="flex flex-wrap items-center justify-between gap-1 text-[11px] md:text-xs text-stone-500 mt-1.5">
-                                    <span class="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                                        <CheckCircle2 class="size-3.5 text-emerald-600" />
+                                <div v-if="shipment.paid_at" class="flex flex-wrap items-center justify-between gap-1 text-xs text-stone-500 mt-1.5">
+                                    <span class="inline-flex items-center gap-1 text-[#853953] font-medium">
+                                        <CheckCircle2 class="size-3.5 text-[#853953]" />
                                         Lunas via {{ formatPaymentMethod(shipment.payment_method) }}
                                     </span>
                                     <span class="text-stone-400">{{ formatDateTime(shipment.paid_at) }}</span>
@@ -711,13 +690,13 @@ const trackingSteps = computed(() => {
                                 </div>
                                 <div class="flex justify-between items-center text-xs font-semibold text-stone-800 mt-1 pt-1 border-t border-dashed border-stone-200">
                                     <span>Hak Bersih Penjual (Saldo COD):</span>
-                                    <span class="font-bold text-emerald-700 tabular-nums">
+                                    <span class="font-semibold text-stone-900 tabular-nums">
                                         Rp {{ Math.max(0, Number(shipment.item_value || 0) - (shipment.platform_fee || 1000)).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
-                                <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] md:text-xs text-stone-500 mt-1.5">
-                                    <span class="inline-flex items-center gap-1 text-amber-700 font-medium">
-                                        <CheckCircle2 class="size-3.5 text-amber-600" />
+                                <div class="flex flex-wrap items-center justify-between gap-1 text-xs text-stone-500 mt-1.5">
+                                    <span class="inline-flex items-center gap-1 text-[#853953] font-medium">
+                                        <CheckCircle2 class="size-3.5 text-[#853953]" />
                                         Metode COD (Ditagih Tunai oleh Kurir)
                                     </span>
                                 </div>
@@ -738,13 +717,13 @@ const trackingSteps = computed(() => {
                                     :alt="shipment.courier_code"
                                     class="max-h-5 max-w-full object-contain"
                                 />
-                                <span v-else class="text-xs font-bold text-stone-600 uppercase">
+                                <span v-else class="text-xs font-semibold text-stone-600 uppercase">
                                     {{ shipment.courier_code }}
                                 </span>
                             </div>
                             <div>
                                 <div class="text-xs text-stone-400">Ekspedisi</div>
-                                <div class="text-sm md:text-base font-bold text-stone-900">{{ shipment.courier_service_name }}</div>
+                                <div class="text-sm md:text-base font-semibold text-stone-900">{{ shipment.courier_service_name }}</div>
                             </div> 
                         </div>
                         <span class="px-2.5 py-1 rounded text-xs md:text-sm font-semibold bg-stone-100 text-stone-700">
@@ -755,7 +734,7 @@ const trackingSteps = computed(() => {
                     <div class="py-2.5 px-3.5 rounded bg-stone-50 text-xs md:text-sm my-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <span class="text-stone-400 block text-[11px] md:text-xs">Nomor Resi (AWB)</span>
+                                <span class="text-stone-400 block text-xs">Nomor Resi (AWB)</span>
                                 <span class="font-semibold text-stone-800">
                                     {{ shipment.waybill_number || 'Menunggu Pickup' }}
                                 </span>
@@ -773,7 +752,7 @@ const trackingSteps = computed(() => {
                     </div>
 
                     <div class="mt-4">
-                        <div class="text-xs md:text-sm font-bold text-stone-500 uppercase tracking-wider mb-3">Riwayat Pengiriman</div>
+                        <div class="text-xs md:text-sm font-semibold text-stone-600 uppercase tracking-wider mb-3">Riwayat Pengiriman</div>
 
                         <div class="space-y-4 relative pl-5 border-l border-stone-200 ml-2">
                             <div
