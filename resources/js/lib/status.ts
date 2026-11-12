@@ -360,6 +360,6 @@ export function formatWeight(grams?: number | null): string {
         return `${grams} gr`;
     }
     const kg = grams / 1000;
-    return `${Number.isInteger(kg) ? kg : kg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} kg`;
+    return `${Number.isInteger(kg) ? kg : kg.toLocaleString('id-ID', { maximumFractionDigits: 3 })} kg`;
 }
 
