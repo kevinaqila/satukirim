@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $item_description
  * @property string|null $item_category
  * @property int $item_value
+ * @property array<int, array<string, mixed>>|null $items
  * @property string $courier_code
  * @property string $courier_service_code
  * @property string $courier_service_name
@@ -55,6 +56,7 @@ use Illuminate\Support\Carbon;
     'item_description',
     'item_category',
     'item_value',
+    'items',
     'courier_code',
     'courier_service_code',
     'courier_service_name',
@@ -90,6 +92,7 @@ class Shipment extends Model
         return [
             'weight' => 'integer',
             'item_value' => 'integer',
+            'items' => 'array',
             'shipping_fee' => 'integer',
             'total_amount' => 'integer',
             'tracking_history' => 'array',
