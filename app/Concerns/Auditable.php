@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\Request;
 trait Auditable
 {
     /**
-     * Staged audit values before update.
+     * Staged audit values before update, keyed by object id.
      *
-     * @var array{old: array<string, mixed>, new: array<string, mixed>}|null
+     * @var array<int, array{old: array<string, mixed>, new: array<string, mixed>}>
      */
-    public ?array $pendingAuditUpdate = null;
+    protected static array $stagedAuditUpdates = [];
 
     /**
      * Boot the auditable trait for a model.
@@ -56,26 +56,29 @@ trait Auditable
                 $new[$key] = $newValue;
             }
 
-            $model->pendingAuditUpdate = [
+            static::$stagedAuditUpdates[spl_object_id($model)] = [
                 'old' => $old,
                 'new' => $new,
             ];
         });
 
         static::updated(function (Model $model): void {
-            if (isset($model->pendingAuditUpdate) && ! empty($model->pendingAuditUpdate)) {
+            $objectId = spl_object_id($model);
+
+            if (isset(static::$stagedAuditUpdates[$objectId])) {
+                $staged = static::$stagedAuditUpdates[$objectId];
+                unset(static::$stagedAuditUpdates[$objectId]);
+
                 AuditLog::create([
                     'user_id' => Auth::id(),
                     'event' => 'updated',
                     'auditable_type' => $model->getMorphClass(),
                     'auditable_id' => $model->getKey(),
-                    'old_values' => $model->pendingAuditUpdate['old'],
-                    'new_values' => $model->pendingAuditUpdate['new'],
+                    'old_values' => $staged['old'],
+                    'new_values' => $staged['new'],
                     'ip_address' => Request::ip() ?? '127.0.0.1',
                     'created_at' => now(),
                 ]);
-
-                unset($model->pendingAuditUpdate);
             }
         });
 
@@ -112,6 +115,7 @@ trait Auditable
             'two_factor_secret',
             'two_factor_recovery_codes',
             'snap_token',
+            'pendingAuditUpdate',
         ];
 
         $modelIgnored = property_exists($this, 'auditExclude') && is_array($this->auditExclude)
@@ -121,4 +125,3 @@ trait Auditable
         return array_unique(array_merge($defaultIgnored, $modelIgnored));
     }
 }
-
