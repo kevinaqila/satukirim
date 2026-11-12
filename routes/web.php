@@ -3,11 +3,11 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\BiteshipController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\MidtransController;
 use App\Http\Controllers\PublicShippingController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\XenditController;
 use App\Http\Middleware\EnsureSuperAdmin;
 use Illuminate\Support\Facades\Route;
 
@@ -19,8 +19,8 @@ Route::prefix('api/public')->middleware('throttle:30,1')->group(function () {
     Route::get('/track', [PublicShippingController::class, 'trackWaybill'])->name('public.track');
 });
 
-Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
 Route::post('/api/biteship/webhook', [BiteshipController::class, 'webhook'])->name('biteship.webhook');
+Route::post('/api/xendit/webhook', [XenditController::class, 'webhook'])->name('xendit.webhook');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
@@ -42,10 +42,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/shipments/print-bulk', [ShipmentController::class, 'printBulk'])->name('shipments.print-bulk');
     Route::get('/shipments/{shipment}', [ShipmentController::class, 'show'])->name('shipments.show');
     Route::delete('/shipments/{shipment}', [ShipmentController::class, 'destroy'])->name('shipments.destroy');
-    Route::get('/shipments/{shipment}/snap-token', [MidtransController::class, 'getToken'])->name('shipments.snap-token');
-    Route::post('/shipments/{shipment}/check-payment', [MidtransController::class, 'checkStatus'])->name('shipments.check-payment');
+    Route::post('/shipments/{shipment}/pay', [ShipmentController::class, 'payWithXendit'])->name('shipments.pay');
+    Route::post('/shipments/{shipment}/check-payment', [ShipmentController::class, 'checkPayment'])->name('shipments.check-payment');
 
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
+    Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])->name('wallet.withdraw');
 
     Route::middleware([EnsureSuperAdmin::class])->prefix('admin')->name('admin.')->group(function () {
         Route::patch('/users/bulk-toggle', [AdminController::class, 'bulkToggleStatus'])->name('users.bulk-toggle');
