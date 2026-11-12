@@ -70,12 +70,16 @@ class Wallet extends Model
                 return Shipment::PLATFORM_FEE;
             });
 
+            $deductedWithdrawals = (int) $this->withdrawals()
+                ->whereIn('status', ['completed', 'pending', 'processing'])
+                ->sum('amount');
+
             $completedWithdrawals = (int) $this->withdrawals()
                 ->where('status', 'completed')
                 ->sum('amount');
 
             $this->update([
-                'available_balance' => max(0, $accumulatedRevenue - $completedWithdrawals),
+                'available_balance' => max(0, $accumulatedRevenue - $deductedWithdrawals),
                 'pending_balance' => 0,
                 'total_withdrawn' => $completedWithdrawals,
             ]);
@@ -88,19 +92,23 @@ class Wallet extends Model
         $deliveredSum = (int) (clone $codQuery)
             ->where('status', 'delivered')
             ->get(['item_value'])
-            ->sum(fn ($s) => max(0, (int) $s->item_value - Shipment::PLATFORM_FEE));
+            ->sum(fn ($s) => max(0, $s->item_value - Shipment::PLATFORM_FEE));
 
         $pendingSum = (int) (clone $codQuery)
             ->whereIn('status', ['paid', 'waiting_pickup', 'allocated', 'picking_up', 'in_transit'])
             ->get(['item_value'])
-            ->sum(fn ($s) => max(0, (int) $s->item_value - Shipment::PLATFORM_FEE));
+            ->sum(fn ($s) => max(0, $s->item_value - Shipment::PLATFORM_FEE));
+
+        $deductedWithdrawals = (int) $this->withdrawals()
+            ->whereIn('status', ['completed', 'pending', 'processing'])
+            ->sum('amount');
 
         $completedWithdrawals = (int) $this->withdrawals()
             ->where('status', 'completed')
             ->sum('amount');
 
         $this->update([
-            'available_balance' => max(0, $deliveredSum - $completedWithdrawals),
+            'available_balance' => max(0, $deliveredSum - $deductedWithdrawals),
             'pending_balance' => $pendingSum,
             'total_withdrawn' => $completedWithdrawals,
         ]);

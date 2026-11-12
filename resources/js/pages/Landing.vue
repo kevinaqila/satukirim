@@ -288,7 +288,7 @@ function selectQuickRoute(from: string, to: string): void {
 const features = [
     { icon: Search, title: 'Komparasi Tarif Real-Time', text: 'Bandingkan tarif dan durasi estimasi dari 8 ekspedisi resmi sekaligus. Pilih yang paling hemat atau tercepat.' },
     { icon: Wallet, title: 'Layanan COD & Saldo Dompet', text: 'Dukung transaksi Bayar di Tempat (COD) tanpa was-was. Dana penjualan tertampung aman di dompet dan siap dicairkan ke rekening bank tokomu.' },
-    { icon: CreditCard, title: 'Bayar Fleksibel via Midtrans', text: 'Bayar ongkir paket instan via QRIS semua bank atau Virtual Account tanpa kewajiban deposit saldo dompet di awal.' },
+    { icon: CreditCard, title: 'Bayar Fleksibel via QRIS & VA', text: 'Bayar ongkir paket instan via QRIS semua bank atau Virtual Account tanpa kewajiban deposit saldo dompet di awal.' },
     { icon: Printer, title: 'Cetak Label Thermal A6', text: 'Format standar ekspedisi 100×150 mm resmi dengan barcode tebal berstandar kurir, tinggal tempel di paket.' },
     { icon: MessageCircle, title: 'Notifikasi Otomatis WhatsApp', text: 'Kabari pembeli secara otomatis saat pesanan dibuat, paket dijemput kurir, hingga barang tiba di tujuan.' },
     { icon: Store, title: 'Multi-Alamat & Multi-Gudang', text: 'Punya beberapa toko atau gudang pengiriman? Simpan alamat dan tentukan lokasi penjemputan paket dengan mudah.' },
@@ -352,7 +352,7 @@ const audiences = [
 const faqs = [
     { q: 'Apakah SatuKirim sebuah marketplace belanja?', a: 'Bukan. SatuKirim adalah aggregator layanan pengiriman kurir khusus bagi pedagang independen (non-marketplace) untuk membandingkan ongkir, menerbitkan nomor resi, memesan kurir jemput, dan memantau status paket.' },
     { q: 'Berapa biaya penggunaan aplikasi SatuKirim?', a: 'Tidak ada biaya langganan bulanan maupun potongan komisi persentase dari nilai produk. SatuKirim hanya mengenakan biaya layanan sistem flat sebesar Rp 1.000 per transaksi pengiriman yang berhasil.' },
-    { q: 'Bagaimana alur pembayaran ongkos kirim?', a: 'Tersedia dua metode fleksibel: pembayaran Non-COD di awal melalui Midtrans menggunakan QRIS (BCA, GoPay, OVO, ShopeePay) & Virtual Account bank, maupun layanan COD (Bayar di Tempat) di mana dana transaksi masuk ke Saldo Dompet UMKM setelah paket berhasil terkirim.' },
+    { q: 'Bagaimana alur pembayaran ongkos kirim?', a: 'Tersedia dua metode fleksibel: pembayaran Non-COD di awal menggunakan QRIS (BCA, GoPay, OVO, ShopeePay) & Virtual Account bank terverifikasi otomatis via Xendit, maupun layanan COD (Bayar di Tempat) di mana dana transaksi masuk ke Saldo Dompet UMKM setelah paket berhasil terkirim.' },
     { q: 'Bagaimana cara mencairkan dana Saldo Dompet COD?', a: 'Setelah paket COD berstatus delivered (diterima pembeli), dana pembayaran otomatis masuk ke Saldo Siap Tarik di dompet UMKM dan dapat diajukan penarikan kapan saja langsung ke rekening bank Anda.' },
     { q: 'Apakah pembeli saya wajib mendaftar akun di SatuKirim?', a: 'Tidak perlu sama sekali! Pembeli cukup membuka tautan pelacakan publik yang Anda bagikan lewat WhatsApp, dan mereka bisa memantau perjalanan paket tanpa harus login.' },
     { q: 'Apakah kurir benar-benar datang menjemput ke rumah/toko?', a: 'Ya! Setelah booking pengiriman dikonfirmasi, sistem otomatis meneruskan jadwal penjemputan (pickup) ke kurir ekspedisi yang Anda pilih tanpa minimum jumlah paket.' },

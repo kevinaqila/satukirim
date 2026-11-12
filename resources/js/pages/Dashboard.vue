@@ -896,7 +896,7 @@ onUnmounted(() => {
                                 <Input
                                     v-model="originQuery"
                                     @input="onOriginInputChange"
-                                    placeholder="Ketik kota asal (cth: Surabaya)..."
+                                    placeholder="Ketik kota asal (Surabaya)..."
                                     class="text-sm h-10 pr-8 rounded-lg"
                                 />
                                 <div class="absolute right-3 top-1/2 -translate-y-1/2">
@@ -929,7 +929,7 @@ onUnmounted(() => {
                                 <Input
                                     v-model="destinationQuery"
                                     @input="onDestInputChange"
-                                    placeholder="Ketik kota tujuan (cth: Jakarta)..."
+                                    placeholder="Ketik kota tujuan (Jakarta)..."
                                     class="text-sm h-10 pr-8 rounded-lg"
                                 />
                                 <div class="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1137,7 +1137,7 @@ onUnmounted(() => {
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-1.5 min-w-0">
                                     <span class="text-xs sm:text-sm font-bold text-stone-800 truncate">
-                                        Non-COD (Midtrans)
+                                        Non-COD (Online / QRIS)
                                     </span>
                                     <span class="text-xs text-stone-400 tabular-nums shrink-0">
                                         ({{ platformStats?.non_cod_count || 0 }} paket)
