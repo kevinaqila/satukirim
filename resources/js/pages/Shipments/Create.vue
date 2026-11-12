@@ -15,6 +15,7 @@ import {
     RefreshCw,
     Search,
     Store,
+    Trash2,
     Truck,
     User,
 } from '@lucide/vue';
@@ -25,7 +26,6 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -45,6 +45,13 @@ export interface StoreOption {
     is_default: boolean;
 }
 
+export interface ShipmentItem {
+    name: string;
+    qty: number;
+    weight: number;
+    value: number;
+}
+
 export interface CourierRate {
     courier_code: string;
     courier_name: string;
@@ -53,6 +60,7 @@ export interface CourierRate {
     duration: string;
     price: number;
     type: string;
+    available_for_cash_on_delivery?: boolean;
 }
 
 const props = defineProps<{
@@ -71,7 +79,6 @@ defineOptions({
     },
 });
 
-const weightKg = ref<number | string>(1);
 const showStoreDropdown = ref(false);
 
 const form = useForm({
@@ -82,10 +89,17 @@ const form = useForm({
     destination_postal_code: '',
     destination_area_id: '',
     destination_area_name: '',
-    weight: 1000,
+    items: [
+        {
+            name: '',
+            qty: 1,
+            weight: 500,
+            value: 50000,
+        },
+    ] as ShipmentItem[],
+    weight: 500,
     item_description: '',
-    item_category: 'Fashion & Pakaian',
-    item_value: 100000,
+    item_value: 50000,
     courier_code: '',
     courier_service_code: '',
     courier_service_name: '',
@@ -94,6 +108,52 @@ const form = useForm({
     payment_type: 'non_cod',
     is_cod: false,
 });
+
+const addItem = () => {
+    if (form.items.length >= 10) return;
+    form.items.push({
+        name: '',
+        qty: 1,
+        weight: 250,
+        value: 50000,
+    });
+};
+
+const removeItem = (index: number) => {
+    if (form.items.length <= 1) return;
+    form.items.splice(index, 1);
+};
+
+const totalWeightGrams = computed(() => {
+    const sum = form.items.reduce((acc, it) => {
+        const q = Math.max(1, Number(it.qty) || 1);
+        const w = Math.max(10, Number(it.weight) || 100);
+        return acc + (q * w);
+    }, 0);
+    return Math.min(10000, Math.max(100, Math.round(sum)));
+});
+
+const totalWeightKg = computed(() => {
+    const kg = totalWeightGrams.value / 1000;
+    return kg.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+});
+
+const totalItemValue = computed(() => {
+    return form.items.reduce((acc, it) => {
+        const q = Math.max(1, Number(it.qty) || 1);
+        const v = Math.max(0, Number(it.value) || 0);
+        return acc + (q * v);
+    }, 0);
+});
+
+watch(
+    [totalWeightGrams, totalItemValue],
+    ([newWeight, newValue]) => {
+        form.weight = newWeight;
+        form.item_value = newValue;
+    },
+    { immediate: true },
+);
 
 const selectedStore = computed(() => {
     return props.stores.find((s) => s.id === Number(form.store_id)) || props.stores[0];
@@ -133,6 +193,10 @@ watch(storeAreaQuery, (val) => {
     if (!val || val.length < 2) {
         storeAreaResults.value = [];
         showStoreAreaDropdown.value = false;
+        if (!val) {
+            storeForm.biteship_area_id = '';
+            storeForm.area_name = '';
+        }
         return;
     }
 
@@ -211,16 +275,20 @@ const showDestAreaDropdown = ref(false);
 let destSearchTimer: any = null;
 let rateReloadTimer: any = null;
 
-watch(weightKg, (val) => {
-    const parsed = parseFloat(String(val));
-    const clampedKg = Number.isNaN(parsed) ? 0.5 : Math.min(10, Math.max(0.1, parsed));
-    form.weight = Math.round(clampedKg * 1000);
-});
-
 watch(destAreaQuery, (val) => {
     if (!val || val.length < 2) {
         destAreaResults.value = [];
         showDestAreaDropdown.value = false;
+        if (!val) {
+            form.destination_area_id = '';
+            form.destination_area_name = '';
+            ratesList.value = [];
+            form.courier_code = '';
+            form.courier_service_code = '';
+            form.courier_service_name = '';
+            form.shipping_fee = 0;
+            form.estimated_delivery = '';
+        }
         return;
     }
 
@@ -259,6 +327,52 @@ const ratesList = ref<CourierRate[]>([]);
 const isLoadingRates = ref(false);
 const ratesFetchError = ref<string | null>(null);
 
+const isCourierDisabledForCod = (rate: CourierRate): boolean => {
+    return form.payment_type === 'cod' && rate.available_for_cash_on_delivery === false;
+};
+
+const selectCourier = (rate: CourierRate) => {
+    form.courier_code = rate.courier_code;
+    form.courier_service_code = rate.courier_service_code;
+    form.courier_service_name = `${rate.courier_name} ${rate.courier_service_name}`;
+    form.shipping_fee = rate.price;
+    form.estimated_delivery = rate.duration;
+};
+
+const ensureValidCourierSelected = () => {
+    if (!ratesList.value.length) return;
+
+    const stillExists = ratesList.value.find(
+        (r) => r.courier_code === form.courier_code && r.courier_service_code === form.courier_service_code,
+    );
+
+    if (stillExists && !isCourierDisabledForCod(stillExists)) {
+        selectCourier(stillExists);
+        return;
+    }
+
+    const firstValid = form.payment_type === 'cod'
+        ? ratesList.value.find((r) => r.available_for_cash_on_delivery !== false)
+        : ratesList.value[0];
+
+    if (firstValid) {
+        selectCourier(firstValid);
+    } else {
+        form.courier_code = '';
+        form.courier_service_code = '';
+        form.courier_service_name = '';
+        form.shipping_fee = 0;
+        form.estimated_delivery = '';
+    }
+};
+
+watch(
+    () => form.payment_type,
+    () => {
+        ensureValidCourierSelected();
+    },
+);
+
 const fetchRates = async () => {
     if (!form.store_id || !form.destination_area_id || !form.weight) {
         return;
@@ -272,6 +386,7 @@ const fetchRates = async () => {
             store_id: String(form.store_id),
             destination_area_id: String(form.destination_area_id),
             weight: String(form.weight),
+            item_value: String(form.item_value || 50000),
         });
 
         const response = await fetch(`/shipments/rates?${params.toString()}`, {
@@ -284,14 +399,7 @@ const fetchRates = async () => {
         const data = await response.json();
         if (data.success && Array.isArray(data.pricing) && data.pricing.length > 0) {
             ratesList.value = data.pricing;
-            const stillExists = ratesList.value.find(
-                (r) => r.courier_code === form.courier_code && r.courier_service_code === form.courier_service_code,
-            );
-            if (stillExists) {
-                selectCourier(stillExists);
-            } else {
-                selectCourier(ratesList.value[0]);
-            }
+            ensureValidCourierSelected();
         } else {
             ratesList.value = [];
             form.courier_code = '';
@@ -321,28 +429,32 @@ watch(
     },
 );
 
-const selectCourier = (rate: CourierRate) => {
-    form.courier_code = rate.courier_code;
-    form.courier_service_code = rate.courier_service_code;
-    form.courier_service_name = `${rate.courier_name} ${rate.courier_service_name}`;
-    form.shipping_fee = rate.price;
-    form.estimated_delivery = rate.duration;
-};
-
 const canSubmit = computed(() => {
+    const hasValidItems = form.items.length > 0 && form.items.every(
+        (it) => it.name.trim().length > 0 && Number(it.qty) >= 1 && Number(it.weight) >= 10,
+    );
     const baseValid = Boolean(
         form.store_id &&
             form.recipient_name.trim() &&
             form.recipient_phone.trim() &&
             form.destination_area_id &&
             form.destination_address.trim() &&
+            hasValidItems &&
             form.courier_code &&
             form.shipping_fee > 0 &&
             !form.processing,
     );
     if (!baseValid) return false;
-    if (form.payment_type === 'cod' && (!form.item_value || Number(form.item_value) < 1000)) {
-        return false;
+    if (form.payment_type === 'cod') {
+        if (!form.item_value || Number(form.item_value) < 1000) {
+            return false;
+        }
+        const selectedRate = ratesList.value.find(
+            (r) => r.courier_code === form.courier_code && r.courier_service_code === form.courier_service_code,
+        );
+        if (!selectedRate || selectedRate.available_for_cash_on_delivery === false) {
+            return false;
+        }
     }
     return true;
 });
@@ -351,9 +463,12 @@ const submitOrder = () => {
     if (!canSubmit.value) {
         return;
     }
-    if (!form.item_description.trim()) {
-        form.item_description = form.item_category;
-    }
+    const summary = form.items
+        .map((it) => `${it.name.trim() || 'Barang'}${Number(it.qty) > 1 ? ` (${it.qty}x)` : ''}`)
+        .join(', ');
+    form.item_description = summary || 'Barang Dagangan UMKM';
+    form.weight = totalWeightGrams.value;
+    form.item_value = totalItemValue.value;
     form.is_cod = form.payment_type === 'cod';
     form.post('/shipments');
 };
@@ -369,7 +484,7 @@ const submitOrder = () => {
             <div class="lg:col-span-7 space-y-3.5 sm:space-y-4">
                 <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
+                        <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
                             <Store class="size-4.5 text-[#853953]" />
                             <span>Titik Penjemputan</span>
                         </h2>
@@ -384,7 +499,7 @@ const submitOrder = () => {
 
                     <div v-if="stores.length === 0" class="rounded-lg border border-dashed border-stone-200 bg-stone-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div class="space-y-1">
-                            <p class="text-xs sm:text-sm font-bold text-stone-900">
+                            <p class="text-sm font-semibold text-stone-900">
                                 Belum Ada Titik Penjemputan
                             </p>
                             <p class="text-xs text-stone-500 leading-relaxed">
@@ -413,12 +528,12 @@ const submitOrder = () => {
                             "
                         >
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="text-sm font-bold text-stone-900 truncate">
+                                <span class="text-sm font-semibold text-stone-900 truncate">
                                     {{ selectedStore?.name }}
                                 </span>
                                 <span
                                     v-if="selectedStore?.is_default"
-                                    class="px-2 py-0.5 rounded-md bg-amber-100/90 text-amber-900 text-xs font-semibold shrink-0"
+                                    class="px-2 py-0.5 rounded-md bg-[#853953]/10 text-[#853953] text-xs font-semibold shrink-0"
                                 >
                                     Toko Utama
                                 </span>
@@ -447,12 +562,12 @@ const submitOrder = () => {
                             >
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-2">
-                                        <span class="text-sm font-bold truncate">
+                                        <span class="text-sm font-semibold truncate">
                                             {{ store.name }}
                                         </span>
                                         <span
                                             v-if="store.is_default"
-                                            class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[11px] font-semibold shrink-0"
+                                            class="px-1.5 py-0.5 rounded bg-[#853953]/10 text-[#853953] text-xs font-semibold shrink-0"
                                         >
                                             Toko Utama
                                         </span>
@@ -501,14 +616,14 @@ const submitOrder = () => {
                 </div>
 
                 <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3.5">
-                    <h2 class="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
+                    <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
                         <User class="size-4.5 text-[#853953]" />
                         <span>Informasi Penerima & Tujuan</span>
                     </h2>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div class="space-y-1.5">
-                            <Label for="rec-name" class="text-xs sm:text-sm font-semibold text-stone-700">
+                            <Label for="rec-name" class="text-sm font-medium text-stone-700">
                                 Nama Lengkap Penerima
                             </Label>
                             <Input
@@ -522,7 +637,7 @@ const submitOrder = () => {
                         </div>
 
                         <div class="space-y-1.5">
-                            <Label for="rec-phone" class="text-xs sm:text-sm font-semibold text-stone-700">
+                            <Label for="rec-phone" class="text-sm font-medium text-stone-700">
                                 Nomor WhatsApp / HP Penerima
                             </Label>
                             <Input
@@ -539,12 +654,12 @@ const submitOrder = () => {
 
                     <div class="dest-area-dropdown-container space-y-1.5 relative">
                         <div class="flex items-center justify-between">
-                            <Label for="dest-area" class="text-xs sm:text-sm font-semibold text-stone-700">
+                            <Label for="dest-area" class="text-sm font-medium text-stone-700">
                                 Kecamatan / Kota Tujuan
                             </Label>
                             <span
                                 v-if="form.destination_area_id"
-                                class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"
+                                class="inline-flex items-center gap-1 text-xs font-medium text-primary"
                             >
                                 <Check class="size-3.5" /> Area Terpilih
                             </span>
@@ -558,7 +673,7 @@ const submitOrder = () => {
                             <Input
                                 id="dest-area"
                                 v-model="destAreaQuery"
-                                placeholder="Ketik kecamatan atau kota tujuan (cth: Kebon Jeruk, Jakarta)..."
+                                placeholder="Ketik kecamatan atau kota tujuan (Kebon Jeruk, Jakarta)..."
                                 class="pl-9 pr-9 text-sm h-10"
                                 autocomplete="off"
                                 @focus="destAreaResults.length > 0 ? (showDestAreaDropdown = true) : null"
@@ -604,7 +719,7 @@ const submitOrder = () => {
 
                     <div class="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
                         <div class="sm:col-span-3 space-y-1.5">
-                            <Label for="dest-address" class="text-xs sm:text-sm font-semibold text-stone-700">
+                            <Label for="dest-address" class="text-sm font-medium text-stone-700">
                                 Alamat Lengkap & Patokan
                             </Label>
                             <Input
@@ -617,7 +732,7 @@ const submitOrder = () => {
                             <InputError :message="form.errors.destination_address" />
                         </div>
                         <div class="space-y-1.5">
-                            <Label for="dest-zip" class="text-xs sm:text-sm font-semibold text-stone-700">
+                            <Label for="dest-zip" class="text-sm font-medium text-stone-700">
                                 Kode Pos
                             </Label>
                             <Input
@@ -626,74 +741,145 @@ const submitOrder = () => {
                                 placeholder="11530"
                                 class="text-sm h-10"
                             />
+                            <InputError :message="form.errors.destination_postal_code" />
                         </div>
                     </div>
                 </div>
 
                 <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3.5">
-                    <h2 class="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
-                        <Package class="size-4.5 text-[#853953]" />
-                        <span>Spesifikasi Barang & Paket</span>
-                    </h2>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
+                            <Package class="size-4.5 text-[#853953]" />
+                            <span>Rincian Barang</span>
+                        </h2>
+                        <span class="text-sm font-medium text-stone-500">
+                            Total {{ totalWeightKg }} kg ({{ form.items.length }} barang)
+                        </span>
+                    </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                        <div class="space-y-1.5">
-                            <Label for="pkg-desc" class="text-xs sm:text-sm font-semibold text-stone-700">
-                                Nama Barang
-                            </Label>
-                            <Input
-                                id="pkg-desc"
-                                v-model="form.item_description"
-                                placeholder="Kemeja Batik, Kopi"
-                                class="text-sm h-10"
-                                required
-                            />
-                        </div>
-
-                        <div class="space-y-1.5">
+                    <div class="space-y-3">
+                        <div
+                            v-for="(item, idx) in form.items"
+                            :key="idx"
+                            class="p-3.5 rounded-xl border border-stone-200/80 bg-stone-50/50 space-y-3 relative transition-all"
+                        >
                             <div class="flex items-center justify-between">
-                                <Label for="pkg-weight-kg" class="text-xs sm:text-sm font-semibold text-stone-700">
-                                    Berat Paket (Kg)
-                                </Label>
-                                <span class="text-xs font-medium text-stone-400">
-                                    Maks. 10 kg
+                                <span class="text-sm font-semibold text-stone-800">
+                                    Barang {{ idx + 1 }}
                                 </span>
+                                <button
+                                    v-if="form.items.length > 1"
+                                    type="button"
+                                    @click="removeItem(idx)"
+                                    class="text-sm font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                    <span>Hapus</span>
+                                </button>
                             </div>
-                            <Input
-                                id="pkg-weight-kg"
-                                v-model="weightKg"
-                                type="number"
-                                step="0.1"
-                                min="0.1"
-                                max="10"
-                                placeholder="1"
-                                class="text-sm h-10"
-                                required
-                            />
-                        </div>
 
-                        <div class="space-y-1.5">
-                            <Label for="pkg-val" class="text-xs sm:text-sm font-semibold text-stone-700">
-                                Estimasi Nilai Barang (Rp)
-                            </Label>
-                            <Input
-                                id="pkg-val"
-                                v-model="form.item_value"
-                                type="number"
-                                min="0"
-                                step="1000"
-                                placeholder="100000"
-                                class="text-sm h-10"
-                            />
+                            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                                <div class="sm:col-span-5 space-y-1">
+                                    <Label :for="`item-name-${idx}`" class="text-sm font-medium text-stone-700">
+                                        Nama Barang <span class="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        :id="`item-name-${idx}`"
+                                        v-model="item.name"
+                                        placeholder="Kemeja Flanel, Kopi Arabika"
+                                        class="text-sm h-10 bg-white border border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="(form.errors as any)[`items.${idx}.name`]" />
+                                </div>
+
+                                <div class="sm:col-span-2 space-y-1">
+                                    <Label :for="`item-qty-${idx}`" class="text-sm font-medium text-stone-700">
+                                        Qty
+                                    </Label>
+                                    <Input
+                                        :id="`item-qty-${idx}`"
+                                        v-model.number="item.qty"
+                                        type="number"
+                                        min="1"
+                                        max="1000"
+                                        placeholder="1"
+                                        class="text-sm h-10 bg-white border border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="(form.errors as any)[`items.${idx}.qty`]" />
+                                </div>
+
+                                <div class="sm:col-span-2 space-y-1">
+                                    <Label :for="`item-weight-${idx}`" class="text-sm font-medium text-stone-700">
+                                        Berat (gr)
+                                    </Label>
+                                    <Input
+                                        :id="`item-weight-${idx}`"
+                                        v-model.number="item.weight"
+                                        type="number"
+                                        min="10"
+                                        max="10000"
+                                        step="1"
+                                        placeholder="250"
+                                        class="text-sm h-10 bg-white border border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="(form.errors as any)[`items.${idx}.weight`]" />
+                                </div>
+
+                                <div class="sm:col-span-3 space-y-1">
+                                    <Label :for="`item-val-${idx}`" class="text-sm font-medium text-stone-700">
+                                        Harga per item (Rp)
+                                    </Label>
+                                    <Input
+                                        :id="`item-val-${idx}`"
+                                        v-model.number="item.value"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="50000"
+                                        class="text-sm h-10 bg-white border border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="(form.errors as any)[`items.${idx}.value`]" />
+                                </div>
+                            </div>
+
+                            <div v-if="Number(item.qty) > 1" class="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-500 pt-1 border-t border-stone-200/60">
+                                <span>Subtotal berat: {{ ((item.qty || 1) * (item.weight || 100)).toLocaleString('id-ID') }} gr</span>
+                                <span>Subtotal nilai: Rp {{ ((item.qty || 1) * (item.value || 0)).toLocaleString('id-ID') }}</span>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="addItem"
+                            :disabled="form.items.length >= 10"
+                            class="text-sm font-medium text-primary border border-stone-200 hover:bg-stone-50 h-9 px-3.5 rounded-lg cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                            <Plus class="size-4" />
+                            <span>Tambah Barang</span>
+                        </Button>
+
+                        <span class="text-sm text-stone-500">
+                            Maksimal 10 barang (total berat maks. 10 kg)
+                        </span>
+                    </div>
+
+                    <InputError :message="(form.errors as any).items" />
+                    <InputError :message="form.errors.item_value" />
                 </div>
             </div>
 
             <div class="lg:col-span-5 lg:sticky lg:top-4 space-y-3.5 sm:space-y-4">
                 <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3.5">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
+                        <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
                             <Truck class="size-4.5 text-[#853953]" />
                             <span>Pilih Layanan Ekspedisi</span>
                         </h2>
@@ -719,18 +905,18 @@ const submitOrder = () => {
                         <p class="text-sm font-semibold text-stone-700">
                             Tujuan Pengiriman Belum Dipilih
                         </p>
-                        <p class="text-xs text-stone-500 max-w-xs mx-auto leading-relaxed">
-                            Pilih <strong class="font-semibold text-stone-700">Kecamatan / Kota Tujuan</strong> di formulir sebelah kiri untuk menampilkan perbandingan ongkir dari 8 ekspedisi secara otomatis.
+                        <p class="text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                            Pilih Kecamatan atau Kota Tujuan di sebelah kiri untuk melihat tarif pengiriman.
                         </p>
                     </div>
 
                     <div v-else-if="isLoadingRates" class="py-10 text-center space-y-2.5">
                         <Loader2 class="size-7 animate-spin mx-auto text-[#853953]" />
                         <p class="text-sm font-semibold text-stone-700">
-                            Mengecek Tarif 8 Ekspedisi...
+                            Mengecek Tarif Ekspedisi...
                         </p>
                         <p class="text-xs text-stone-500">
-                            Membandingkan harga layanan Reguler & Next Day terbaik
+                            Memeriksa tarif layanan Reguler & Next Day
                         </p>
                     </div>
 
@@ -745,16 +931,25 @@ const submitOrder = () => {
 
                     <div v-else class="space-y-2 max-h-80 overflow-y-auto pr-1">
                         <div
+                            v-if="form.payment_type === 'cod' && ratesList.length > 0 && !ratesList.some(r => r.available_for_cash_on_delivery !== false)"
+                            class="p-3 rounded-lg bg-stone-50 border border-stone-200 text-xs text-stone-600"
+                        >
+                            Tidak ada ekspedisi yang mendukung COD untuk rute ini. Silakan gunakan metode Non-COD.
+                        </div>
+
+                        <div
                             v-for="rate in ratesList"
                             :key="`${rate.courier_code}-${rate.courier_service_code}`"
-                            @click="selectCourier(rate)"
-                            class="p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3"
-                            :class="
-                                form.courier_code === rate.courier_code &&
-                                form.courier_service_code === rate.courier_service_code
-                                    ? 'bg-[#853953]/8 ring-1.5 ring-[#853953]'
-                                    : 'bg-stone-50/70 hover:bg-stone-100/80'
-                            "
+                            @click="isCourierDisabledForCod(rate) ? null : selectCourier(rate)"
+                            class="p-3 rounded-xl transition-all flex items-center justify-between gap-3"
+                            :class="[
+                                isCourierDisabledForCod(rate)
+                                    ? 'opacity-55 cursor-not-allowed bg-stone-100/70 border border-stone-200/60 select-none'
+                                    : (form.courier_code === rate.courier_code &&
+                                       form.courier_service_code === rate.courier_service_code
+                                        ? 'bg-[#853953]/8 ring-1.5 ring-[#853953] cursor-pointer'
+                                        : 'bg-stone-50/70 hover:bg-stone-100/80 cursor-pointer')
+                            ]"
                         >
                             <div class="flex items-center gap-3 min-w-0">
                                 <div class="h-8 w-12 bg-white rounded-md border border-stone-200/70 p-1 flex items-center justify-center shrink-0">
@@ -763,19 +958,26 @@ const submitOrder = () => {
                                         :src="getCourierLogo(rate.courier_code)!"
                                         :alt="rate.courier_name"
                                         class="max-h-5 max-w-full object-contain"
+                                        :class="isCourierDisabledForCod(rate) ? 'grayscale' : ''"
                                     />
-                                    <span v-else class="text-xs font-bold text-stone-600 uppercase">
+                                    <span v-else class="text-xs font-semibold text-stone-600 uppercase">
                                         {{ rate.courier_code }}
                                     </span>
                                 </div>
 
                                 <div class="min-w-0">
-                                    <div class="text-sm font-bold text-stone-900 truncate">
+                                    <div class="text-sm font-semibold text-stone-900 truncate">
                                         {{ rate.courier_name }} {{ rate.courier_service_name }}
                                     </div>
                                     <div class="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
                                         <span class="flex items-center gap-1">
                                             <Clock class="size-3" /> {{ rate.duration }}
+                                        </span>
+                                        <span
+                                            v-if="rate.available_for_cash_on_delivery === false && form.payment_type === 'cod'"
+                                            class="text-xs font-medium text-rose-600"
+                                        >
+                                            Tidak Menerima COD
                                         </span>
                                     </div>
                                 </div>
@@ -783,33 +985,41 @@ const submitOrder = () => {
 
                             <div class="flex items-center gap-2.5 shrink-0">
                                 <div class="text-right">
-                                    <div class="text-sm font-bold text-primary tabular-nums">
+                                    <div
+                                        class="text-sm font-semibold tabular-nums"
+                                        :class="isCourierDisabledForCod(rate) ? 'text-stone-400' : 'text-primary'"
+                                    >
                                         Rp {{ Number(rate.price).toLocaleString('id-ID') }}
                                     </div>
                                 </div>
                                 <div
                                     class="size-4.5 rounded-full border flex items-center justify-center shrink-0"
-                                    :class="
-                                        form.courier_code === rate.courier_code &&
-                                        form.courier_service_code === rate.courier_service_code
-                                            ? 'border-[#853953] bg-[#853953] text-white'
-                                            : 'border-stone-300 bg-white'
-                                    "
+                                    :class="[
+                                        isCourierDisabledForCod(rate)
+                                            ? 'border-stone-200 bg-stone-100 text-stone-300'
+                                            : (form.courier_code === rate.courier_code &&
+                                               form.courier_service_code === rate.courier_service_code
+                                                ? 'border-[#853953] bg-[#853953] text-white'
+                                                : 'border-stone-300 bg-white')
+                                    ]"
                                 >
                                     <Check
                                         v-if="
-                                            form.courier_code === rate.courier_code &&
-                                            form.courier_service_code === rate.courier_service_code
+                                            !isCourierDisabledForCod(rate) &&
+                                             form.courier_code === rate.courier_code &&
+                                             form.courier_service_code === rate.courier_service_code
                                         "
                                         class="size-3"
                                     />
                                 </div>
                             </div>
                         </div>
+
+                        <InputError :message="form.errors.courier_code" />
                     </div>
 
                     <div class="pt-3.5 border-t border-stone-100 space-y-2">
-                        <div class="text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        <div class="text-xs font-semibold text-stone-600 uppercase tracking-wider">
                             Metode Pembayaran
                         </div>
                         <div class="grid grid-cols-2 gap-2">
@@ -824,11 +1034,11 @@ const submitOrder = () => {
                                 "
                             >
                                 <div class="flex items-center justify-between mb-1">
-                                    <span class="text-xs font-bold text-stone-900">Non-COD</span>
+                                    <span class="text-sm font-semibold text-stone-900">Non-COD</span>
                                     <CreditCard class="size-3.5 text-[#853953]" />
                                 </div>
-                                <span class="text-[11px] text-stone-500 leading-tight">
-                                    Bayar online sekarang via Midtrans/QRIS
+                                <span class="text-xs text-stone-500 leading-normal">
+                                    Bayar online sekarang via QRIS / VA
                                 </span>
                             </button>
 
@@ -843,10 +1053,10 @@ const submitOrder = () => {
                                 "
                             >
                                 <div class="flex items-center justify-between mb-1">
-                                    <span class="text-xs font-bold text-stone-900">COD</span>
-                                    <Banknote class="size-3.5 text-emerald-600" />
+                                    <span class="text-sm font-semibold text-stone-900">COD</span>
+                                    <Banknote class="size-3.5 text-[#853953]" />
                                 </div>
-                                <span class="text-[11px] text-stone-500 leading-tight">
+                                <span class="text-xs text-stone-500 leading-normal">
                                     Bayar di tempat saat paket sampai
                                 </span>
                             </button>
@@ -858,7 +1068,7 @@ const submitOrder = () => {
                             <div class="flex items-center justify-between text-stone-600">
                                 <span>Berat Paket</span>
                                 <span class="font-semibold text-stone-800 tabular-nums">
-                                    {{ weightKg || 1 }} kg ({{ form.weight.toLocaleString('id-ID') }} gr)
+                                    {{ totalWeightKg }} kg ({{ form.weight.toLocaleString('id-ID') }} gr)
                                 </span>
                             </div>
                             <div class="flex items-center justify-between text-stone-600">
@@ -886,26 +1096,29 @@ const submitOrder = () => {
                         <div v-if="form.payment_type === 'cod'" class="space-y-2">
                             <div class="p-3 rounded-lg bg-stone-50/90 space-y-1.5">
                                 <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-stone-700">Tagihan ke Penerima (COD)</span>
-                                    <span class="text-base font-extrabold text-[#853953] tabular-nums">
+                                    <span class="text-sm font-medium text-stone-700">Tagihan ke Penerima (COD)</span>
+                                    <span class="text-base font-bold text-[#853953] tabular-nums">
                                         Rp {{ (Number(form.shipping_fee) + Number(form.item_value || 0)).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
-                                <div class="flex items-center justify-between pt-1.5 border-t border-stone-200/60 text-xs">
+                                <div class="flex items-center justify-between pt-1.5 border-t border-stone-200/60 text-sm">
                                     <span class="text-stone-500">Hak Bersih Penjual (Saldo COD):</span>
-                                    <span class="font-bold text-emerald-600 tabular-nums">
+                                    <span class="font-semibold text-stone-900 tabular-nums">
                                         Rp {{ Math.max(0, Number(form.item_value || 0) - 1000).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
                             </div>
-                            <p class="text-[11px] text-stone-500 leading-normal">
-                                Kurir akan menagih total Rp {{ (Number(form.shipping_fee) + Number(form.item_value || 0)).toLocaleString('id-ID') }} ke penerima. Saldo bersih Rp {{ Math.max(0, Number(form.item_value || 0) - 1000).toLocaleString('id-ID') }} otomatis masuk ke Saldo COD Anda setelah paket sampai (potong biaya layanan Rp 1.000).
+                            <p class="text-xs text-stone-500 leading-relaxed">
+                                Saldo COD bersih otomatis masuk ke Saldo Dompet Anda setelah paket berhasil terkirim (biaya layanan Rp 1.000).
+                            </p>
+                            <p v-if="!form.item_value || Number(form.item_value) < 1000" class="text-xs text-rose-600 font-medium">
+                                * Nilai barang untuk pengiriman COD minimal Rp 1.000 agar dapat diproses.
                             </p>
                         </div>
 
                         <div v-else class="p-3 rounded-lg bg-stone-50/90 flex items-center justify-between">
-                            <span class="text-sm font-bold text-stone-900">Total Tagihan</span>
-                            <span class="text-lg font-extrabold text-primary tabular-nums">
+                            <span class="text-sm font-medium text-stone-800">Total Tagihan</span>
+                            <span class="text-lg font-bold text-primary tabular-nums">
                                 Rp {{ (Number(form.shipping_fee) + 1000).toLocaleString('id-ID') }}
                             </span>
                         </div>
@@ -930,36 +1143,29 @@ const submitOrder = () => {
                 class="sm:max-w-lg bg-white p-5 sm:p-6 rounded-xl border border-stone-200 shadow-xl max-h-[90vh] overflow-y-auto"
             >
                 <DialogHeader class="text-left space-y-1">
-                    <div class="flex items-center gap-2.5">
-                        <div>
-                            <DialogTitle class="text-base sm:text-lg font-bold text-stone-900">
-                                {{ stores.length === 0 ? 'Atur Titik Penjemputan Pertama' : 'Tambah Titik Penjemputan' }}
-                            </DialogTitle>
-                            <DialogDescription class="text-xs text-stone-500">
-                                {{ stores.length === 0 ? 'Lengkapi data toko/gudang asal sebelum mulai mengirim paket.' : 'Tambahkan alamat penjemputan baru untuk pengiriman Anda.' }}
-                            </DialogDescription>
-                        </div>
-                    </div>
+                    <DialogTitle class="text-base sm:text-lg font-semibold text-stone-900">
+                        {{ stores.length === 0 ? 'Atur Titik Penjemputan Pertama' : 'Tambah Titik Penjemputan' }}
+                    </DialogTitle>
                 </DialogHeader>
 
                 <form @submit.prevent="submitNewStore" class="space-y-3.5 mt-2">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div class="space-y-1">
-                            <Label for="modal-store-name" class="text-xs sm:text-sm font-semibold text-stone-800">
+                            <Label for="modal-store-name" class="text-sm font-medium text-stone-700">
                                 Nama Toko / Gudang<span class="text-red-500 ml-1">*</span>
                             </Label>
                             <Input
                                 id="modal-store-name"
                                 v-model="storeForm.name"
                                 placeholder="Gudang Utama Surabaya"
-                                class="h-10 text-xs sm:text-sm bg-white border-stone-200"
+                                class="h-10 text-sm bg-white border-stone-200"
                                 required
                             />
                             <InputError :message="storeForm.errors.name" />
                         </div>
 
                         <div class="space-y-1">
-                            <Label for="modal-store-phone" class="text-xs sm:text-sm font-semibold text-stone-800">
+                            <Label for="modal-store-phone" class="text-sm font-medium text-stone-700">
                                 Nomor WhatsApp Pengirim<span class="text-red-500 ml-1">*</span>
                             </Label>
                             <div class="relative">
@@ -968,7 +1174,7 @@ const submitOrder = () => {
                                     id="modal-store-phone"
                                     v-model="storeForm.phone"
                                     placeholder="081234567890"
-                                    class="h-10 pl-9 text-xs sm:text-sm bg-white border-stone-200"
+                                    class="h-10 pl-9 text-sm bg-white border-stone-200"
                                     required
                                 />
                             </div>
@@ -977,9 +1183,9 @@ const submitOrder = () => {
                     </div>
 
                     <div class="space-y-1 relative store-area-dropdown-container">
-                        <Label for="modal-store-area" class="text-xs sm:text-sm font-semibold text-stone-800 flex items-center justify-between">
+                        <Label for="modal-store-area" class="text-sm font-medium text-stone-700 flex items-center justify-between">
                             <span>Kecamatan & Kota Penjemputan<span class="text-red-500 ml-1">*</span></span>
-                            <span class="text-[11px] text-[#853953] font-medium">Wajib pilih dari daftar</span>
+                            <span class="text-xs text-[#853953] font-medium">Wajib pilih dari daftar</span>
                         </Label>
 
                         <div class="relative">
@@ -988,7 +1194,7 @@ const submitOrder = () => {
                                 id="modal-store-area"
                                 v-model="storeAreaQuery"
                                 placeholder="Ketik kelurahan atau kecamatan penjemputan..."
-                                class="h-10 pl-9 pr-9 text-xs sm:text-sm bg-white border-stone-200"
+                                class="h-10 pl-9 pr-9 text-sm bg-white border-stone-200"
                                 autocomplete="off"
                                 @focus="storeAreaResults.length > 0 ? (showStoreAreaDropdown = true) : null"
                             />
@@ -1007,23 +1213,23 @@ const submitOrder = () => {
                                 @click="selectStoreArea(area)"
                                 class="p-2.5 hover:bg-stone-50 cursor-pointer border-b border-stone-100 last:border-none transition-colors"
                             >
-                                <div class="text-xs sm:text-sm font-bold text-stone-900">
+                                <div class="text-sm font-semibold text-stone-900">
                                     {{ area.name }}
                                 </div>
-                                <div class="text-[11px] text-stone-500">
+                                <div class="text-xs text-stone-500">
                                     {{ area.administrative_division_level_3_name }}, {{ area.administrative_division_level_2_name }}, {{ area.administrative_division_level_1_name }}
                                     <span v-if="area.postal_code">({{ area.postal_code }})</span>
                                 </div>
                             </div>
                         </div>
 
-                        <span v-if="storeForm.errors.biteship_area_id" class="text-[11px] text-red-600 font-medium block">
+                        <span v-if="storeForm.errors.biteship_area_id" class="text-xs text-red-600 font-medium block">
                             Pilih area penjemputan dari daftar pencarian.
                         </span>
                     </div>
 
                     <div class="space-y-1">
-                        <Label for="modal-store-address" class="text-xs sm:text-sm font-semibold text-stone-800">
+                        <Label for="modal-store-address" class="text-sm font-medium text-stone-700">
                             Alamat Lengkap & Patokan<span class="text-red-500 ml-1">*</span>
                         </Label>
                         <textarea
@@ -1031,7 +1237,7 @@ const submitOrder = () => {
                             v-model="storeForm.address"
                             rows="2"
                             placeholder="Jl. Raya Sukolilo No. 45, Ruko B3 (sebelah Bank BCA)"
-                            class="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-xs sm:text-sm text-stone-900 placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#853953] focus-visible:ring-offset-1"
+                            class="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#853953] focus-visible:ring-offset-1"
                             required
                         />
                         <InputError :message="storeForm.errors.address" />
