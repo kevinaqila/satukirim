@@ -109,7 +109,8 @@ class BiteshipService
         string $originAreaId,
         string $destinationAreaId,
         int $weightInGrams = 1000,
-        array $couriers = ['jne', 'sicepat', 'jnt', 'anteraja', 'tiki', 'pos', 'ninja', 'lion']
+        array $couriers = ['jne', 'sicepat', 'jnt', 'anteraja', 'tiki', 'pos', 'ninja', 'lion'],
+        int $codAmount = 50000,
     ): array {
         $payload = [
             'origin_area_id' => $originAreaId,
@@ -119,11 +120,13 @@ class BiteshipService
                 [
                     'name' => 'Paket Barang',
                     'description' => 'Paket pengiriman',
-                    'value' => 50000,
+                    'value' => max(1000, $codAmount),
                     'weight' => min(10000, max(100, $weightInGrams)),
                     'quantity' => 1,
                 ],
             ],
+            'destination_cash_on_delivery' => max(1000, $codAmount),
+            'destination_cash_on_delivery_type' => '7_days',
         ];
 
         try {
@@ -152,6 +155,22 @@ class BiteshipService
 
                     return ! $isCargo && ! $isInstant;
                 }));
+
+                $filtered = array_map(function (array $p): array {
+                    $courierCode = strtolower($p['courier_code'] ?? '');
+
+                    $isCod = isset($p['available_for_cash_on_delivery'])
+                        ? filter_var($p['available_for_cash_on_delivery'], FILTER_VALIDATE_BOOLEAN)
+                        : in_array($courierCode, ['jne', 'sicepat', 'jnt', 'anteraja', 'sap', 'idexpress'], true);
+
+                    if (in_array($courierCode, ['lion', 'tiki', 'pos'], true)) {
+                        $isCod = false;
+                    }
+
+                    $p['available_for_cash_on_delivery'] = $isCod;
+
+                    return $p;
+                }, $filtered);
 
                 return [
                     'success' => true,
@@ -274,20 +293,42 @@ class BiteshipService
         $shipment->loadMissing('store');
         $store = $shipment->store;
 
-        $originPhone = preg_replace('/\D/', '', (string) ($store?->phone ?? '081234567890'));
-        $destPhone = preg_replace('/\D/', '', (string) $shipment->recipient_phone);
+        $originPhone = preg_replace('/\D/', '', $store?->phone ?? '');
+        $destPhone = preg_replace('/\D/', '', $shipment->recipient_phone ?? '');
 
-        $originPostal = (int) ($store?->postal_code ?? 0);
-        $destPostal = (int) ($shipment->destination_postal_code ?? 0);
+        $courierCompany = strtolower(trim($shipment->courier_code));
+        $courierType = strtolower(trim($shipment->courier_service_code));
 
-        $courierCompany = strtolower(trim((string) $shipment->courier_code));
-        $courierType = strtolower(trim((string) $shipment->courier_service_code));
+        $itemsPayload = [];
+        if (! empty($shipment->items) && is_array($shipment->items)) {
+            foreach ($shipment->items as $item) {
+                $itemsPayload[] = [
+                    'name' => trim($item['name'] ?? 'Paket Pengiriman'),
+                    'description' => trim($item['category'] ?? ($shipment->item_category ?: 'Retail')),
+                    'value' => max(1000, (int) ($item['value'] ?? 0)),
+                    'quantity' => max(1, (int) ($item['qty'] ?? 1)),
+                    'weight' => max(10, (int) ($item['weight'] ?? 0)),
+                ];
+            }
+        }
+
+        if (empty($itemsPayload)) {
+            $itemsPayload = [
+                [
+                    'name' => $shipment->item_description ?: 'Paket Pengiriman',
+                    'description' => $shipment->item_category ?: 'Retail',
+                    'value' => max(1000, $shipment->item_value),
+                    'quantity' => 1,
+                    'weight' => max(100, $shipment->weight),
+                ],
+            ];
+        }
 
         $payload = [
             'reference_id' => $shipment->order_number,
-            'origin_contact_name' => $store?->name ?? 'Toko Pengirim',
+            'origin_contact_name' => $store?->name,
             'origin_contact_phone' => $originPhone,
-            'origin_address' => $store?->address ?? 'Alamat Toko',
+            'origin_address' => $store?->address,
             'origin_area_id' => $store?->biteship_area_id,
             'destination_contact_name' => $shipment->recipient_name,
             'destination_contact_phone' => $destPhone,
@@ -297,26 +338,19 @@ class BiteshipService
             'courier_type' => $courierType,
             'delivery_type' => 'now',
             'order_note' => 'Order '.$shipment->order_number,
-            'items' => [
-                [
-                    'name' => $shipment->item_description ?: 'Paket Pengiriman UMKM',
-                    'description' => $shipment->item_category ?: 'Retail',
-                    'value' => (int) ($shipment->item_value > 0 ? $shipment->item_value : 50000),
-                    'quantity' => 1,
-                    'weight' => max(100, (int) $shipment->weight),
-                ],
-            ],
+            'items' => $itemsPayload,
         ];
 
-        if ($originPostal > 0) {
-            $payload['origin_postal_code'] = $originPostal;
+        if (! empty($store?->postal_code)) {
+            $payload['origin_postal_code'] = (int) $store->postal_code;
         }
-        if ($destPostal > 0) {
-            $payload['destination_postal_code'] = $destPostal;
+
+        if (! empty($shipment->destination_postal_code)) {
+            $payload['destination_postal_code'] = (int) $shipment->destination_postal_code;
         }
 
         if ($shipment->payment_method === 'cod') {
-            $codTotalAmount = (int) ($shipment->item_value + $shipment->shipping_fee);
+            $codTotalAmount = $shipment->item_value + $shipment->shipping_fee;
             if ($codTotalAmount > 0) {
                 $payload['destination_cash_on_delivery'] = $codTotalAmount;
                 $payload['destination_cash_on_delivery_type'] = '7_days';

@@ -66,7 +66,7 @@ test('user can create a draft shipment with pending payment status', function ()
     $response->assertRedirect(route('shipments.show', $shipment));
 });
 
-test('midtrans webhook marks shipment as paid on settlement', function () {
+test('xendit webhook marks shipment as paid on paid status', function () {
     $user = User::factory()->create();
 
     $store = Store::create([
@@ -94,16 +94,12 @@ test('midtrans webhook marks shipment as paid on settlement', function () {
         'total_amount' => 15000,
     ]);
 
-    $serverKey = (string) config('services.midtrans.server_key', '');
-    $signature = hash('sha512', $shipment->order_number.'200'.'15000.00'.$serverKey);
-
-    $response = $this->postJson(route('midtrans.webhook'), [
-        'order_id' => $shipment->order_number,
-        'status_code' => '200',
-        'gross_amount' => '15000.00',
-        'signature_key' => $signature,
-        'transaction_status' => 'settlement',
-        'payment_type' => 'qris',
+    $response = $this->postJson(route('xendit.webhook'), [
+        'id' => 'inv-12345',
+        'external_id' => $shipment->order_number,
+        'status' => 'PAID',
+        'amount' => 15000,
+        'payment_method' => 'QRIS',
     ]);
 
     $response->assertOk();

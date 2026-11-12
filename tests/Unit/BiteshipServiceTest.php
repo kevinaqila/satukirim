@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Shipment;
 use App\Services\BiteshipService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -114,6 +115,59 @@ test('biteship service filters out cargo and instant courier services', function
         ->and($result['pricing'][0]['courier_service_code'])->toBe('reg');
 });
 
+test('biteship service correctly identifies courier cod availability', function () {
+    Http::fake([
+        'api.biteship.com/v1/rates/couriers' => Http::response([
+            'success' => true,
+            'pricing' => [
+                [
+                    'courier_name' => 'JNE',
+                    'courier_code' => 'jne',
+                    'courier_service_name' => 'Reguler',
+                    'courier_service_code' => 'reg',
+                    'type' => 'standard',
+                    'price' => 19000,
+                    'available_for_cash_on_delivery' => true,
+                ],
+                [
+                    'courier_name' => 'Ninja Van',
+                    'courier_code' => 'ninja',
+                    'courier_service_name' => 'Standard',
+                    'courier_service_code' => 'standard',
+                    'type' => 'standard',
+                    'price' => 18000,
+                    'available_for_cash_on_delivery' => false,
+                ],
+                [
+                    'courier_name' => 'Lion Parcel',
+                    'courier_code' => 'lion',
+                    'courier_service_name' => 'REGPACK',
+                    'courier_service_code' => 'regpack',
+                    'type' => 'standard',
+                    'price' => 17000,
+                    'available_for_cash_on_delivery' => true,
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->checkRates('IDnp60281', 'IDnp10110', 1000, codAmount: 75000);
+
+    expect($result['success'])->toBeTrue()
+        ->and($result['pricing'])->toHaveCount(3)
+        ->and($result['pricing'][0]['available_for_cash_on_delivery'])->toBeTrue()
+        ->and($result['pricing'][1]['available_for_cash_on_delivery'])->toBeFalse()
+        ->and($result['pricing'][2]['available_for_cash_on_delivery'])->toBeFalse();
+
+    Http::assertSent(function ($request) {
+        $data = $request->data();
+
+        return $data['destination_cash_on_delivery'] === 75000
+            && $data['destination_cash_on_delivery_type'] === '7_days';
+    });
+});
+
 test('biteship service clamps weight payload between 100g and 10000g', function () {
     Http::fake([
         'api.biteship.com/v1/rates/couriers' => function ($request) {
@@ -172,7 +226,7 @@ test('biteship service can create order and returns order id and waybill', funct
         ], 200),
     ]);
 
-    $shipment = new \App\Models\Shipment([
+    $shipment = new Shipment([
         'order_number' => 'SATU-TEST-001',
         'recipient_name' => 'Budi',
         'recipient_phone' => '08123456789',
@@ -204,6 +258,61 @@ test('biteship service can create order and returns order id and waybill', funct
     });
 });
 
+test('biteship service maps multiple items in shipment payload correctly', function () {
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'biteship_multi_item_123',
+            'courier' => [
+                'waybill_id' => 'JNE-MULTI-999',
+            ],
+        ], 200),
+    ]);
+
+    $shipment = new Shipment([
+        'order_number' => 'SATU-MULTI-001',
+        'recipient_name' => 'Budi',
+        'recipient_phone' => '08123456789',
+        'destination_address' => 'Jl. Gubeng',
+        'destination_area_id' => 'IDnp60281',
+        'courier_code' => 'jne',
+        'courier_service_code' => 'reg',
+        'weight' => 750,
+        'item_value' => 225000,
+        'shipping_fee' => 19000,
+        'payment_method' => 'cod',
+        'items' => [
+            [
+                'name' => 'Kemeja Flanel',
+                'qty' => 2,
+                'weight' => 250,
+                'value' => 75000,
+            ],
+            [
+                'name' => 'Topi Snapback',
+                'qty' => 1,
+                'weight' => 250,
+                'value' => 75000,
+            ],
+        ],
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->createOrder($shipment);
+
+    expect($result['success'])->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        $data = $request->data();
+
+        return count($data['items']) === 2
+            && $data['items'][0]['name'] === 'Kemeja Flanel'
+            && $data['items'][0]['quantity'] === 2
+            && $data['items'][1]['name'] === 'Topi Snapback'
+            && $data['items'][1]['quantity'] === 1;
+    });
+});
+
 test('biteship service automatically retries when schedule time has passed', function () {
     $callCount = 0;
     Http::fake([
@@ -227,7 +336,7 @@ test('biteship service automatically retries when schedule time has passed', fun
         },
     ]);
 
-    $shipment = new \App\Models\Shipment([
+    $shipment = new Shipment([
         'order_number' => 'SATU-RETRY-001',
         'recipient_name' => 'Budi',
         'recipient_phone' => '08123456789',
@@ -271,7 +380,7 @@ test('biteship service automatically falls back to now when courier does not sup
         },
     ]);
 
-    $shipment = new \App\Models\Shipment([
+    $shipment = new Shipment([
         'order_number' => 'SATU-NOW-001',
         'recipient_name' => 'Budi',
         'recipient_phone' => '08123456789',
