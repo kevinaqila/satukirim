@@ -39,7 +39,7 @@ const isActive = (href: string) => {
 
 <template>
     <SidebarGroup class="px-2 py-2">
-        <SidebarGroupLabel class="text-stone-500 font-semibold text-[11px] tracking-wider uppercase px-2 mb-1">
+        <SidebarGroupLabel class="text-stone-500 font-semibold text-xs tracking-wider uppercase px-2 mb-1">
             {{ label }}
         </SidebarGroupLabel>
         <SidebarMenu class="space-y-1">

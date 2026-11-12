@@ -139,7 +139,7 @@ onUnmounted(() => {
                 <div class="flex flex-1 min-h-0 overflow-hidden">
                     <aside class="flex w-48 md:w-52 bg-stone-50/70 border-r border-stone-100 p-3 flex-col shrink-0 select-none">
                         <div class="space-y-2">
-                            <p class="text-[10px] font-bold text-stone-400 uppercase tracking-wider px-2">
+                            <p class="text-xs font-semibold text-stone-500 uppercase tracking-wider px-2">
                                 Menu
                             </p>
 

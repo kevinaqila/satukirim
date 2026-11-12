@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
+    AlertCircle,
     ArrowDownToLine,
     Banknote,
     Building2,
@@ -8,19 +9,21 @@ import {
     Clock,
     Copy,
     Eye,
+    Loader2,
     Wallet,
 } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppTopBar from '@/components/AppTopBar.vue';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Table,
     TableBody,
@@ -93,8 +96,10 @@ const props = defineProps<{
         reference_number: string;
         amount: number;
         status: string;
+        notes?: string | null;
         created_at: string;
     }>;
+    supportedBanks?: Record<string, string>;
 }>();
 
 defineOptions({
@@ -157,10 +162,43 @@ const copyWaybill = async (id: number, waybill: string) => {
     }
 };
 
+const page = usePage();
+const authUser = computed(() => (page.props as any).auth?.user);
+
+const withdrawForm = useForm({
+    bank_code: 'BCA',
+    account_number: '',
+    account_holder_name: '',
+    amount: null as number | null,
+});
+
+const errorMessage = ref<string | null>(null);
+
 const showWithdrawModal = ref(false);
 
 const openWithdrawModal = () => {
+    errorMessage.value = null;
+    withdrawForm.clearErrors();
+    if (!withdrawForm.account_holder_name && authUser.value?.name) {
+        withdrawForm.account_holder_name = authUser.value.name;
+    }
     showWithdrawModal.value = true;
+};
+
+const submitWithdrawal = () => {
+    errorMessage.value = null;
+    withdrawForm.post('/wallet/withdraw', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showWithdrawModal.value = false;
+            withdrawForm.reset('amount');
+        },
+        onError: (errors) => {
+            if (errors.general) {
+                errorMessage.value = errors.general;
+            }
+        },
+    });
 };
 
 const getCodFundStatus = (status: string) => {
@@ -168,24 +206,20 @@ const getCodFundStatus = (status: string) => {
     if (s === 'delivered') {
         return {
             label: 'Masuk Saldo',
-            textClass: 'text-emerald-600',
         };
     }
     if (['cancelled', 'rejected', 'courier_not_found'].includes(s)) {
         return {
             label: 'Dibatalkan',
-            textClass: 'text-rose-600',
         };
     }
     if (s === 'returned') {
         return {
             label: 'Retur (Batal)',
-            textClass: 'text-amber-700',
         };
     }
     return {
         label: 'Tertahan',
-        textClass: 'text-stone-600',
     };
 };
 </script>
@@ -207,7 +241,7 @@ const getCodFundStatus = (status: string) => {
                             </div>
                         </div>
                         <div class="mt-2 sm:mt-2.5">
-                            <div class="text-xl sm:text-2xl font-extrabold text-[#2C2C2C] tabular-nums truncate">
+                            <div class="text-xl sm:text-2xl font-bold text-[#2C2C2C] tabular-nums truncate">
                                 Rp {{ Number(availableBalance).toLocaleString('id-ID') }}
                             </div>
                             <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
@@ -224,7 +258,7 @@ const getCodFundStatus = (status: string) => {
                             </div>
                         </div>
                         <div class="mt-2 sm:mt-2.5">
-                            <div class="text-xl sm:text-2xl font-extrabold text-[#2C2C2C] tabular-nums truncate">
+                            <div class="text-xl sm:text-2xl font-bold text-[#2C2C2C] tabular-nums truncate">
                                 Rp {{ Number(pendingBalance).toLocaleString('id-ID') }}
                             </div>
                             <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
@@ -242,6 +276,37 @@ const getCodFundStatus = (status: string) => {
                     <ArrowDownToLine class="size-4" />
                     <span>Tarik Saldo</span>
                 </Button>
+
+                <div v-if="recentWithdrawals && recentWithdrawals.length > 0" class="p-3.5 sm:p-4 rounded-xl bg-white border border-stone-200/80 shadow-xs space-y-2.5">
+                    <div class="flex items-center justify-between pb-2 border-b border-stone-100">
+                        <span class="text-xs sm:text-sm font-bold text-stone-900">Riwayat Penarikan</span>
+                        <span class="text-xs text-stone-500 tabular-nums">{{ recentWithdrawals.length }} Terakhir</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div
+                            v-for="wd in recentWithdrawals"
+                            :key="wd.id"
+                            class="p-2.5 rounded-lg bg-stone-50/80 border border-stone-200/60 flex items-center justify-between text-xs"
+                        >
+                            <div class="min-w-0 pr-2">
+                                <span class="font-bold text-stone-900 block truncate tabular-nums text-xs sm:text-sm">
+                                    Rp {{ Number(wd.amount).toLocaleString('id-ID') }}
+                                </span>
+                                <span class="text-xs text-stone-500 font-mono block truncate">
+                                    {{ wd.reference_number }}
+                                </span>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="text-xs font-bold text-primary block">
+                                    {{ wd.status === 'completed' ? 'Selesai' : wd.status === 'failed' ? 'Gagal' : 'Diproses' }}
+                                </span>
+                                <span class="text-xs text-stone-400 block mt-0.5">
+                                    {{ formatDateTime(wd.created_at) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lg:col-span-8 w-full min-w-0">
@@ -300,10 +365,7 @@ const getCodFundStatus = (status: string) => {
                                         </span>
                                     </div>
 
-                                    <span
-                                        class="text-xs font-bold shrink-0 whitespace-nowrap"
-                                        :class="getCodFundStatus(item.status).textClass"
-                                    >
+                                    <span class="text-xs font-bold text-primary shrink-0 whitespace-nowrap">
                                         {{ getCodFundStatus(item.status).label }}
                                     </span>
                                 </div>
@@ -312,7 +374,7 @@ const getCodFundStatus = (status: string) => {
                                     <div class="text-sm font-semibold text-stone-900 truncate">
                                         {{ item.recipient_name }}
                                     </div>
-                                    <div class="text-sm font-extrabold text-stone-900 tabular-nums shrink-0 text-right">
+                                    <div class="text-sm font-semibold text-stone-900 tabular-nums shrink-0 text-right">
                                         Rp {{ Math.max(0, Number(item.item_value) - 1000).toLocaleString('id-ID') }}
                                     </div>
                                 </div>
@@ -459,10 +521,7 @@ const getCodFundStatus = (status: string) => {
                                     </TableCell>
 
                                     <TableCell class="text-center whitespace-nowrap">
-                                        <span
-                                            class="text-sm font-bold"
-                                            :class="getCodFundStatus(item.status).textClass"
-                                        >
+                                        <span class="text-sm font-bold text-primary">
                                             {{ getCodFundStatus(item.status).label }}
                                         </span>
                                     </TableCell>
@@ -499,40 +558,194 @@ const getCodFundStatus = (status: string) => {
         </div>
 
         <Dialog :open="showWithdrawModal" @update:open="showWithdrawModal = $event">
-            <DialogContent class="sm:max-w-md bg-white p-5 sm:p-6 rounded-xl border border-stone-200 shadow-xl">
-                <DialogHeader class="text-left space-y-2">
-                    <div class="size-11 rounded-full bg-rose-50 text-[#853953] flex items-center justify-center mb-1">
-                        <Building2 class="size-6" />
-                    </div>
+            <DialogContent
+                @pointer-down-outside="(e) => e.preventDefault()"
+                @interact-outside="(e) => e.preventDefault()"
+                class="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl bg-white p-5 sm:p-6 rounded-xl max-h-[90vh] overflow-y-auto"
+            >
+                <DialogHeader class="text-left">
                     <DialogTitle class="text-base sm:text-lg font-bold text-stone-900">
-                        Fitur Tarik Saldo Belum Tersedia
+                        Tarik Saldo Rekening
                     </DialogTitle>
-                    <DialogDescription class="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                        Modul pemilihan rekening bank dan pencairan dana otomatis (<strong class="font-semibold text-stone-800">Disbursement API / BI-FAST</strong>) saat ini sedang dalam tahap pengujian kepatuhan integrasi mitra perbankan.
-                    </DialogDescription>
                 </DialogHeader>
 
-                <div class="my-3 p-3.5 rounded-lg bg-stone-50 border border-stone-200/80 space-y-2 text-xs text-stone-700">
-                    <div class="flex justify-between items-center pb-2 border-b border-stone-200/60">
-                        <span class="text-stone-500 font-medium">Saldo Siap Tarik Anda:</span>
-                        <span class="font-extrabold text-sm text-primary tabular-nums">
-                            Rp {{ Number(availableBalance).toLocaleString('id-ID') }}
-                        </span>
-                    </div>
-                    <p class="text-xs text-stone-500 leading-normal">
-                        Seluruh saldo COD Anda tetap tersimpan dengan aman di sistem SatuKirim dan dapat langsung dicairkan begitu integrasi resmi diaktifkan.
-                    </p>
-                </div>
-
-                <DialogFooter class="sm:justify-end gap-2">
-                    <Button
-                        type="button"
-                        @click="showWithdrawModal = false"
-                        class="w-full sm:w-auto bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold cursor-pointer"
+                <form @submit.prevent="submitWithdrawal" class="space-y-4">
+                    <div
+                        v-if="withdrawForm.errors.general || errorMessage"
+                        class="p-3 rounded-lg bg-rose-50 text-xs text-rose-700 flex items-start gap-2"
                     >
-                        Saya Mengerti
-                    </Button>
-                </DialogFooter>
+                        <AlertCircle class="size-4 shrink-0 mt-0.5" />
+                        <div>{{ withdrawForm.errors.general || errorMessage }}</div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                        <div class="md:col-span-7 space-y-3.5">
+                            <div class="p-3.5 rounded-xl bg-stone-50 flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-medium text-stone-500 block">Saldo Siap Tarik</span>
+                                    <span class="text-base sm:text-lg font-bold text-[#853953] tabular-nums">
+                                        Rp {{ Number(availableBalance).toLocaleString('id-ID') }}
+                                    </span>
+                                </div>
+                                <span class="text-xs font-medium text-stone-400">
+                                    Min. Rp 10.000
+                                </span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <Label for="withdraw-bank" class="text-xs sm:text-sm font-semibold text-stone-700">
+                                    Bank Tujuan<span class="text-red-500 ml-1">*</span>
+                                </Label>
+                                <select
+                                    id="withdraw-bank"
+                                    v-model="withdrawForm.bank_code"
+                                    class="h-10 text-xs sm:text-sm bg-white border border-stone-200 rounded-lg px-3 w-full text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#853953]/20 focus:border-[#853953]"
+                                    required
+                                >
+                                    <option
+                                        v-for="(bankName, code) in (supportedBanks || {
+                                            BCA: 'Bank Central Asia (BCA)',
+                                            MANDIRI: 'Bank Mandiri',
+                                            BRI: 'Bank Rakyat Indonesia (BRI)',
+                                            BNI: 'Bank Negara Indonesia (BNI)',
+                                            BSI: 'Bank Syariah Indonesia (BSI)',
+                                            CIMB: 'CIMB Niaga',
+                                            PERMATA: 'Bank Permata',
+                                            JAGO: 'Bank Jago',
+                                            SEABANK: 'SeaBank Indonesia',
+                                            BNC: 'Bank Neo Commerce (BNC)',
+                                        })"
+                                        :key="code"
+                                        :value="code"
+                                    >
+                                        {{ bankName }}
+                                    </option>
+                                </select>
+                                <InputError :message="withdrawForm.errors.bank_code" />
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="space-y-1">
+                                    <Label for="withdraw-account-number" class="text-xs sm:text-sm font-semibold text-stone-700">
+                                        Nomor Rekening<span class="text-red-500 ml-1">*</span>
+                                    </Label>
+                                    <Input
+                                        id="withdraw-account-number"
+                                        v-model="withdrawForm.account_number"
+                                        type="text"
+                                        inputmode="numeric"
+                                        placeholder="1234567890"
+                                        class="h-10 text-xs sm:text-sm bg-white border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="withdrawForm.errors.account_number" />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <Label for="withdraw-account-name" class="text-xs sm:text-sm font-semibold text-stone-700">
+                                        Nama Pemilik Rekening<span class="text-red-500 ml-1">*</span>
+                                    </Label>
+                                    <Input
+                                        id="withdraw-account-name"
+                                        v-model="withdrawForm.account_holder_name"
+                                        type="text"
+                                        placeholder="Sesuai buku tabungan"
+                                        class="h-10 text-xs sm:text-sm bg-white border-stone-200"
+                                        required
+                                    />
+                                    <InputError :message="withdrawForm.errors.account_holder_name" />
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <Label for="withdraw-amount" class="text-xs sm:text-sm font-semibold text-stone-700">
+                                    Nominal Penarikan (Rp)<span class="text-red-500 ml-1">*</span>
+                                </Label>
+                                <Input
+                                    id="withdraw-amount"
+                                    v-model.number="withdrawForm.amount"
+                                    type="number"
+                                    min="10000"
+                                    :max="availableBalance"
+                                    placeholder="Minimal Rp 10.000"
+                                    class="h-10 text-xs sm:text-sm bg-white border-stone-200 font-medium"
+                                    required
+                                />
+                                <InputError :message="withdrawForm.errors.amount" />
+
+                                <div class="flex flex-wrap gap-1.5 pt-0.5">
+                                    <button
+                                        type="button"
+                                        v-for="nominal in [25000, 50000, 100000, 250000]"
+                                        :key="nominal"
+                                        @click="withdrawForm.amount = nominal"
+                                        :disabled="nominal > availableBalance"
+                                        :class="[
+                                            'text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer',
+                                            withdrawForm.amount === nominal
+                                                ? 'bg-[#853953] text-white border-[#853953]'
+                                                : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100 disabled:opacity-40 disabled:cursor-not-allowed'
+                                        ]"
+                                    >
+                                        Rp {{ Number(nominal).toLocaleString('id-ID') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-5 flex flex-col justify-between h-full gap-4">
+                            <div class="p-4 rounded-xl bg-stone-50 space-y-3">
+                                <div class="text-xs font-bold text-stone-700 uppercase tracking-wider">
+                                    Rincian Penarikan
+                                </div>
+
+                                <div class="space-y-2 text-xs sm:text-sm">
+                                    <div class="flex justify-between items-center text-stone-600">
+                                        <span>Nominal Ditarik</span>
+                                        <span class="font-bold text-stone-900 tabular-nums">
+                                            Rp {{ Number(withdrawForm.amount || 0).toLocaleString('id-ID') }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-stone-600">
+                                        <span>Biaya Admin</span>
+                                        <span class="font-semibold text-stone-900">Bebas Biaya (Rp 0)</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-stone-600">
+                                        <span>Waktu Pemrosesan</span>
+                                        <span class="font-semibold text-stone-900">Realtime / Instan</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-lg bg-white flex items-center justify-between">
+                                    <span class="text-xs sm:text-sm font-semibold text-stone-900">Sisa Saldo</span>
+                                    <span class="text-base sm:text-lg font-bold text-primary tabular-nums">
+                                        Rp {{ Math.max(0, availableBalance - (Number(withdrawForm.amount) || 0)).toLocaleString('id-ID') }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showWithdrawModal = false"
+                            :disabled="withdrawForm.processing"
+                            class="text-xs sm:text-sm font-semibold h-9 sm:h-10 px-4 cursor-pointer border-stone-200 text-stone-700 hover:bg-stone-50 shadow-2xs"
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="withdrawForm.processing || !withdrawForm.amount || withdrawForm.amount > availableBalance || withdrawForm.amount < 10000"
+                            class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                        >
+                            <Loader2 v-if="withdrawForm.processing" class="mr-2 size-4 animate-spin" />
+                            <span>Konfirmasi Tarik Saldo</span>
+                        </Button>
+                    </div>
+                </form>
             </DialogContent>
         </Dialog>
     </div>
