@@ -20,6 +20,7 @@ test('profile information can be updated', function () {
         ->patch(route('profile.update'), [
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'phone' => '081234567890',
         ]);
 
     $response
@@ -30,6 +31,7 @@ test('profile information can be updated', function () {
 
     expect($user->name)->toBe('Test User');
     expect($user->email)->toBe('test@example.com');
+    expect($user->phone)->toBe('081234567890');
     expect($user->email_verified_at)->toBeNull();
 });
 
@@ -82,4 +84,45 @@ test('correct password must be provided to delete account', function () {
         ->assertRedirect(route('profile.edit'));
 
     expect($user->fresh())->not->toBeNull();
+});
+
+test('bank settings page is displayed and payout bank account can be updated', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('bank.edit'))
+        ->assertOk();
+
+    $response = $this
+        ->actingAs($user)
+        ->from(route('bank.edit'))
+        ->patch(route('bank.update'), [
+            'bank_code' => 'BCA',
+            'bank_account_number' => '1234567890',
+            'bank_account_name' => 'Kevin Aqila',
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('bank.edit'));
+
+    $user->refresh();
+    expect($user->bank_code)->toBe('BCA');
+    expect($user->bank_account_number)->toBe('1234567890');
+    expect($user->bank_account_name)->toBe('Kevin Aqila');
+});
+
+test('bank settings rejects invalid bank code or non-numeric account number', function () {
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->from(route('bank.edit'))
+        ->patch(route('bank.update'), [
+            'bank_code' => 'UNKNOWN',
+            'bank_account_number' => 'abc-123',
+            'bank_account_name' => 'A',
+        ]);
+
+    $response->assertSessionHasErrors(['bank_code', 'bank_account_number', 'bank_account_name']);
 });

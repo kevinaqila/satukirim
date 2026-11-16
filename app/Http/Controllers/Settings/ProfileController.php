@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\BankAccountUpdateRequest;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -39,6 +40,26 @@ class ProfileController extends Controller
         $request->user()->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Profile updated.')]);
+
+        return back();
+    }
+
+    /**
+     * Show the user's payout bank account settings page.
+     */
+    public function editBank(): Response
+    {
+        return Inertia::render('settings/Bank');
+    }
+
+    /**
+     * Update the user's payout bank account information.
+     */
+    public function updateBank(BankAccountUpdateRequest $request): RedirectResponse
+    {
+        $request->user()->update($request->validated());
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Rekening pencairan berhasil disimpan.']);
 
         return back();
     }

@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ChevronRight,
+    Landmark,
     LogOut,
     Shield,
     Store,
@@ -13,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/composables/useInitials';
 import AppSidebarLayout from '@/layouts/app/AppSidebarLayout.vue';
 import { dashboard, logout } from '@/routes';
+import { edit as editBank } from '@/routes/bank';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 
@@ -26,9 +28,15 @@ const user = computed(() => page.props.auth?.user);
 const menuItems = [
     {
         title: 'Profil Akun',
-        description: 'Nama lengkap, alamat email, dan identitas',
+        description: 'Nama lengkap, email, dan nomor telepon',
         href: editProfile(),
         icon: UserIcon,
+    },
+    {
+        title: 'Rekening Pencairan',
+        description: 'Atur bank dan nomor rekening tujuan tarik saldo',
+        href: editBank(),
+        icon: Landmark,
     },
     {
         title: 'Toko Saya',

@@ -29,16 +29,7 @@ const user = computed(() => page.props.auth.user);
     <div class="space-y-4 sm:space-y-6">
         <Head title="Profil Akun - SatuKirim" />
 
-        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
-            <div class="space-y-0.5 pb-2 border-b border-stone-100">
-                <h3 class="text-sm font-bold text-stone-900">
-                    Informasi Profil
-                </h3>
-                <p class="text-xs text-stone-500">
-                    Perbarui nama lengkap dan alamat email akun Anda.
-                </p>
-            </div>
-
+        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs">
             <Form
                 v-bind="ProfileController.update.form()"
                 class="space-y-4"
@@ -75,6 +66,23 @@ const user = computed(() => page.props.auth.user);
                         placeholder="nama@contoh.com"
                     />
                     <InputError class="mt-1" :message="errors.email" />
+                </div>
+
+                <div class="grid gap-1.5">
+                    <Label for="phone" class="text-xs sm:text-sm font-semibold text-stone-800">
+                        Nomor Telepon / WhatsApp
+                    </Label>
+                    <Input
+                        id="phone"
+                        type="tel"
+                        inputmode="tel"
+                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200"
+                        name="phone"
+                        :default-value="user.phone || ''"
+                        autocomplete="tel"
+                        placeholder="081234567890"
+                    />
+                    <InputError class="mt-1" :message="errors.phone" />
                 </div>
 
                 <div

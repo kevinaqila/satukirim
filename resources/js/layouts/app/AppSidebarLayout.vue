@@ -24,7 +24,8 @@ onMounted(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const settingsParam = urlParams.get('settings');
         if (settingsParam) {
-            openSettingsModal(settingsParam === 'security' ? 'security' : 'profile');
+            const tab = settingsParam === 'security' ? 'security' : settingsParam === 'bank' ? 'bank' : 'profile';
+            openSettingsModal(tab);
             urlParams.delete('settings');
             const newSearch = urlParams.toString();
             const cleanUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;

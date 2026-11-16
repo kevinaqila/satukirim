@@ -3,6 +3,9 @@ export type User = {
     name: string;
     email: string;
     phone?: string | null;
+    bank_code?: string | null;
+    bank_account_number?: string | null;
+    bank_account_name?: string | null;
     role?: 'super_admin' | 'umkm';
     is_active?: boolean;
     avatar?: string;

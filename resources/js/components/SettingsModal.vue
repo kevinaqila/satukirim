@@ -3,6 +3,7 @@ import { router, useForm, usePage } from '@inertiajs/vue3';
 import { useMediaQuery } from '@vueuse/core';
 import {
     Check,
+    Landmark,
     Loader2,
     Shield,
     User as UserIcon,
@@ -12,14 +13,24 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import DeleteUser from '@/components/DeleteUser.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { getInitials } from '@/composables/useInitials';
 import { useSettingsModal } from '@/composables/useSettingsModal';
 
 const isDesktop = useMediaQuery('(min-width: 768px)');
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
+const supportedBanks = computed(() => (page.props.supportedBanks || {}) as Record<string, string>);
 const { isSettingsModalOpen, activeSettingsTab, closeSettingsModal } = useSettingsModal();
 
 const navItems = [
@@ -27,6 +38,11 @@ const navItems = [
         id: 'profile' as const,
         title: 'Profil Akun',
         icon: UserIcon,
+    },
+    {
+        id: 'bank' as const,
+        title: 'Rekening Bank',
+        icon: Landmark,
     },
     {
         id: 'security' as const,
@@ -38,6 +54,13 @@ const navItems = [
 const profileForm = useForm({
     name: user.value?.name || '',
     email: user.value?.email || '',
+    phone: user.value?.phone || '',
+});
+
+const bankForm = useForm({
+    bank_code: user.value?.bank_code || 'BCA',
+    bank_account_number: user.value?.bank_account_number || '',
+    bank_account_name: user.value?.bank_account_name || user.value?.name || '',
 });
 
 watch(
@@ -46,6 +69,10 @@ watch(
         if (newUser) {
             profileForm.name = newUser.name;
             profileForm.email = newUser.email;
+            profileForm.phone = newUser.phone || '';
+            bankForm.bank_code = newUser.bank_code || 'BCA';
+            bankForm.bank_account_number = newUser.bank_account_number || '';
+            bankForm.bank_account_name = newUser.bank_account_name || newUser.name || '';
         }
     },
     { immediate: true },
@@ -59,6 +86,19 @@ const submitProfile = () => {
             isProfileSaved.value = true;
             setTimeout(() => {
                 isProfileSaved.value = false;
+            }, 2500);
+        },
+    });
+};
+
+const isBankSaved = ref(false);
+const submitBank = () => {
+    bankForm.patch('/settings/bank', {
+        preserveScroll: true,
+        onSuccess: () => {
+            isBankSaved.value = true;
+            setTimeout(() => {
+                isBankSaved.value = false;
             }, 2500);
         },
     });
@@ -115,7 +155,7 @@ onUnmounted(() => {
             @click.self="closeSettingsModal"
         >
             <div
-                class="w-full max-w-2xl h-[520px] max-h-[90vh] bg-white rounded-2xl border border-stone-200 shadow-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 select-text"
+                class="w-full max-w-3xl lg:max-w-4xl h-[600px] max-h-[90vh] bg-white rounded-2xl border border-stone-200 shadow-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 select-text"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="settings-dialog-title"
@@ -170,7 +210,29 @@ onUnmounted(() => {
                     </aside>
 
                     <main class="flex-1 min-w-0 p-5 sm:p-6 md:p-7 overflow-y-auto bg-white">
-                        <div v-if="activeSettingsTab === 'profile'" class="max-w-md space-y-5">
+                        <div v-if="activeSettingsTab === 'profile'" class="w-full space-y-5">
+                            <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-stone-50/90 border border-stone-200/70">
+                                <Avatar class="size-11 rounded-full border border-stone-200 bg-white shrink-0">
+                                    <AvatarImage v-if="user?.avatar" :src="user.avatar" :alt="user?.name" />
+                                    <AvatarFallback class="font-bold text-sm bg-[#853953] text-white">
+                                        {{ getInitials(user?.name || '') }}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-bold text-[#2C2C2C] truncate">
+                                            {{ user?.name }}
+                                        </p>
+                                        <span class="px-2 py-0.5 rounded-md bg-[#853953]/10 text-[#853953] text-[11px] font-semibold shrink-0">
+                                            {{ user?.role === 'super_admin' ? 'Super Admin' : 'Mitra UMKM' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-stone-500 truncate mt-0.5">
+                                        {{ user?.email }}
+                                    </p>
+                                </div>
+                            </div>
+
                             <form @submit.prevent="submitProfile" class="space-y-4">
                                 <div class="space-y-1.5">
                                     <Label for="profile-name" class="text-xs sm:text-sm font-semibold text-stone-800">
@@ -202,6 +264,21 @@ onUnmounted(() => {
                                     <InputError :message="profileForm.errors.email" />
                                 </div>
 
+                                <div class="space-y-1.5">
+                                    <Label for="profile-phone" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                        Nomor Telepon / WhatsApp
+                                    </Label>
+                                    <Input
+                                        id="profile-phone"
+                                        v-model="profileForm.phone"
+                                        type="tel"
+                                        inputmode="tel"
+                                        placeholder="081234567890"
+                                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 rounded-lg"
+                                    />
+                                    <InputError :message="profileForm.errors.phone" />
+                                </div>
+
                                 <div class="flex items-center gap-3 pt-1">
                                     <Button
                                         type="submit"
@@ -224,7 +301,83 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <div v-else-if="activeSettingsTab === 'security'" class="max-w-md space-y-5">
+                        <div v-else-if="activeSettingsTab === 'bank'" class="w-full space-y-5">
+                            <form @submit.prevent="submitBank" class="space-y-4">
+                                <div class="space-y-1.5">
+                                    <Label for="modal-bank-code" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                        Bank Tujuan
+                                    </Label>
+                                    <Select v-model="bankForm.bank_code">
+                                        <SelectTrigger
+                                            id="modal-bank-code"
+                                            class="w-full !h-9 sm:!h-10 bg-white border-stone-200 rounded-lg text-xs sm:text-sm text-stone-900 focus-visible:border-[#853953] focus-visible:ring-[#853953]/20 cursor-pointer"
+                                        >
+                                            <SelectValue placeholder="Pilih bank tujuan" />
+                                        </SelectTrigger>
+                                        <SelectContent class="z-[60] max-h-60 bg-white border-stone-200 rounded-lg shadow-lg">
+                                            <SelectItem
+                                                v-for="(bankName, code) in supportedBanks"
+                                                :key="code"
+                                                :value="String(code)"
+                                                class="text-xs sm:text-sm cursor-pointer data-[state=checked]:font-semibold data-[state=checked]:text-[#853953]"
+                                            >
+                                                {{ bankName }}
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError :message="bankForm.errors.bank_code" />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="modal-bank-account-number" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                        Nomor Rekening
+                                    </Label>
+                                    <Input
+                                        id="modal-bank-account-number"
+                                        v-model="bankForm.bank_account_number"
+                                        type="text"
+                                        inputmode="numeric"
+                                        placeholder="Masukkan angka nomor rekening"
+                                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 rounded-lg font-mono"
+                                        required
+                                    />
+                                    <InputError :message="bankForm.errors.bank_account_number" />
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <Label for="modal-bank-account-name" class="text-xs sm:text-sm font-semibold text-stone-800">
+                                        Nama Pemilik Rekening
+                                    </Label>
+                                    <Input
+                                        id="modal-bank-account-name"
+                                        v-model="bankForm.bank_account_name"
+                                        type="text"
+                                        placeholder="Sesuai buku tabungan"
+                                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 rounded-lg"
+                                        required
+                                    />
+                                    <InputError :message="bankForm.errors.bank_account_name" />
+                                </div>
+
+                                <div class="flex items-center gap-3 pt-1">
+                                    <Button
+                                        type="submit"
+                                        :disabled="bankForm.processing"
+                                        class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 rounded-lg shadow-xs cursor-pointer"
+                                    >
+                                        <Loader2 v-if="bankForm.processing" class="mr-2 size-4 animate-spin" />
+                                        Simpan Rekening
+                                    </Button>
+
+                                    <span v-if="isBankSaved" class="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                        <Check class="size-3.5 text-emerald-600" />
+                                        Tersimpan!
+                                    </span>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div v-else-if="activeSettingsTab === 'security'" class="w-full space-y-5">
                             <form @submit.prevent="submitPassword" class="space-y-4">
                                 <div class="space-y-1.5">
                                     <Label for="current-password" class="text-xs sm:text-sm font-semibold text-stone-800">

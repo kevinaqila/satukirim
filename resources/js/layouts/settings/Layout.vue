@@ -5,6 +5,7 @@ import { computed, onMounted } from 'vue';
 import AppTopBar from '@/components/AppTopBar.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { dashboard } from '@/routes';
+import { edit as editBank } from '@/routes/bank';
 import { edit as editSecurity } from '@/routes/security';
 
 const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -14,12 +15,19 @@ const currentTitle = computed(() => {
     if (isCurrentOrParentUrl(editSecurity())) {
         return 'Keamanan & Kata Sandi';
     }
+    if (isCurrentOrParentUrl(editBank())) {
+        return 'Rekening Pencairan';
+    }
     return 'Profil Akun';
 });
 
 onMounted(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        const tab = isCurrentOrParentUrl(editSecurity()) ? 'security' : '1';
+        const tab = isCurrentOrParentUrl(editSecurity())
+            ? 'security'
+            : isCurrentOrParentUrl(editBank())
+                ? 'bank'
+                : '1';
         router.visit(dashboard({ query: { settings: tab } }), { replace: true });
     }
 });

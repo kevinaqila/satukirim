@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('name');
             $table->string('email')->unique();
             $table->string('phone')->nullable();
+            $table->string('bank_code', 20)->nullable();
+            $table->string('bank_account_number', 40)->nullable();
+            $table->string('bank_account_name', 100)->nullable();
             $table->string('role')->default('umkm');
             $table->boolean('is_active')->default(true);
             $table->timestamp('email_verified_at')->nullable();

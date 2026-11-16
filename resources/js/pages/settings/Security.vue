@@ -29,16 +29,7 @@ defineOptions({
     <div class="space-y-4 sm:space-y-6">
         <Head title="Keamanan & Kata Sandi - SatuKirim" />
 
-        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
-            <div class="space-y-0.5 pb-2 border-b border-stone-100">
-                <h3 class="text-sm font-bold text-stone-900">
-                    Ubah Kata Sandi
-                </h3>
-                <p class="text-xs text-stone-500">
-                    Pastikan akun Anda menggunakan kata sandi yang panjang dan aman.
-                </p>
-            </div>
-
+        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs">
             <Form
                 v-bind="SecurityController.update.form()"
                 :options="{
