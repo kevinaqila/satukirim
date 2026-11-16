@@ -14,8 +14,11 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
+use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Symfony\Component\HttpFoundation\Response;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -24,7 +27,51 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LoginResponseContract::class, fn () => new class($this) implements LoginResponseContract
+        {
+            public function __construct(private FortifyServiceProvider $provider) {}
+
+            public function toResponse($request): Response
+            {
+                $this->provider->clearDisallowedIntendedUrl($request);
+
+                return $request->wantsJson()
+                    ? response()->json(['two_factor' => false])
+                    : redirect()->intended(Fortify::redirects('login'));
+            }
+        });
+
+        $this->app->singleton(TwoFactorLoginResponseContract::class, fn () => new class($this) implements TwoFactorLoginResponseContract
+        {
+            public function __construct(private FortifyServiceProvider $provider) {}
+
+            public function toResponse($request): Response
+            {
+                $this->provider->clearDisallowedIntendedUrl($request);
+
+                return $request->wantsJson()
+                    ? response()->noContent()
+                    : redirect()->intended(Fortify::redirects('login'));
+            }
+        });
+    }
+
+    /**
+     * Remove admin intended redirect URL when a non-super-admin signs in.
+     */
+    public function clearDisallowedIntendedUrl(Request $request): void
+    {
+        $intended = $request->session()->get('url.intended');
+        if (! is_string($intended) || $intended === '') {
+            return;
+        }
+
+        $path = parse_url($intended, PHP_URL_PATH) ?: '';
+        $user = $request->user();
+
+        if (! $user?->isSuperAdmin() && ($path === '/admin' || str_starts_with($path, '/admin/'))) {
+            $request->session()->forget('url.intended');
+        }
     }
 
     /**

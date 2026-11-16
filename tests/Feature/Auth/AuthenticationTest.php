@@ -75,3 +75,29 @@ test('users are rate limited', function () {
 
     $response->assertTooManyRequests();
 });
+
+test('umkm user is redirected to dashboard instead of intended admin url after login', function () {
+    $umkm = User::factory()->create(['role' => 'umkm']);
+
+    $response = $this->withSession(['url.intended' => url('/admin/users')])
+        ->post(route('login.store'), [
+            'email' => $umkm->email,
+            'password' => 'password',
+        ]);
+
+    $this->assertAuthenticatedAs($umkm);
+    $response->assertRedirect(route('dashboard', absolute: false));
+});
+
+test('super admin user is redirected to intended admin url after login', function () {
+    $admin = User::factory()->create(['role' => 'super_admin']);
+
+    $response = $this->withSession(['url.intended' => url('/admin/users')])
+        ->post(route('login.store'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ]);
+
+    $this->assertAuthenticatedAs($admin);
+    $response->assertRedirect(url('/admin/users'));
+});
