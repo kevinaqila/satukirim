@@ -35,7 +35,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $biteship_order_id
  * @property string|null $waybill_number
  * @property array<array-key, mixed>|null $tracking_history
- * @property string|null $snap_token
+ * @property string|null $xendit_invoice_id
  * @property string|null $payment_method
  * @property Carbon|null $paid_at
  * @property Carbon|null $created_at
@@ -66,7 +66,7 @@ use Illuminate\Support\Carbon;
     'biteship_order_id',
     'waybill_number',
     'tracking_history',
-    'snap_token',
+    'xendit_invoice_id',
     'payment_method',
     'paid_at',
 ])]

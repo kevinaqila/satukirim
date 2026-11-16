@@ -39,7 +39,7 @@ return new class extends Migration
             $table->string('waybill_number')->nullable()->index();
             $table->json('tracking_history')->nullable();
 
-            $table->string('snap_token')->nullable();
+            $table->string('xendit_invoice_id')->nullable();
             $table->string('payment_method')->nullable();
             $table->timestamp('paid_at')->nullable();
 

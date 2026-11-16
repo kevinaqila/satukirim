@@ -440,7 +440,7 @@ class ShipmentSeeder extends Seeder
                     'biteship_order_id' => $data['waybill'] ? 'bite_'.strtolower(str_replace('-', '', $orderNumber)) : null,
                     'waybill_number' => $data['waybill'],
                     'tracking_history' => $trackingHistory,
-                    'snap_token' => $data['status'] === 'pending_payment' ? 'mock_snap_token_'.$orderNumber : null,
+                    'xendit_invoice_id' => $data['status'] === 'pending_payment' ? 'mock_invoice_'.$orderNumber : null,
                     'payment_method' => $data['paid'] ? (rand(0, 1) === 1 ? 'qris' : 'bca_va') : null,
                     'paid_at' => $paidAt,
                     'created_at' => $createdAt,
