@@ -2,7 +2,6 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     Building2,
-    Check,
     Loader2,
     MapPin,
     Pencil,
@@ -75,6 +74,18 @@ const confirmDeleteStore = () => {
         },
     });
 };
+
+const formatStoreArea = (areaName: string | null, postalCode: string | null): string => {
+    const cleanArea = (areaName || '').trim();
+    const cleanPostal = (postalCode || '').trim();
+    if (!cleanArea) {
+        return cleanPostal ? `Kode Pos ${cleanPostal}` : '';
+    }
+    if (cleanPostal && !cleanArea.includes(cleanPostal)) {
+        return `${cleanArea} - ${cleanPostal}`;
+    }
+    return cleanArea;
+};
 </script>
 
 <template>
@@ -83,7 +94,7 @@ const confirmDeleteStore = () => {
 
         <AppTopBar title="Toko Saya" back-href="/settings" back-mobile-only />
 
-        <div class="flex flex-1 flex-col gap-3.5 sm:gap-4 p-3.5 sm:p-5 pb-28 md:pb-20 w-full">
+        <div class="flex flex-1 flex-col gap-3.5 sm:gap-4 p-3 sm:p-4 lg:p-5 pb-28 md:pb-20 w-full">
             <div v-if="stores.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
                 <div
                     v-for="store in stores"
@@ -107,44 +118,33 @@ const confirmDeleteStore = () => {
                             </span>
                         </div>
 
-                        <div class="space-y-2.5">
+                        <div class="space-y-2">
                             <div class="flex items-center gap-2 text-xs sm:text-sm text-stone-600">
                                 <Phone class="size-3.5 sm:size-4 text-stone-400 shrink-0" />
-                                <span class="font-medium text-stone-700">{{ store.phone }}</span>
+                                <span class="font-medium text-stone-700 tabular-nums">{{ store.phone }}</span>
                             </div>
 
                             <div class="flex items-start gap-2 text-xs sm:text-sm text-stone-600">
                                 <MapPin class="size-3.5 sm:size-4 text-stone-400 shrink-0 mt-0.5" />
-                                <span class="line-clamp-2 leading-relaxed text-stone-700 font-medium">
-                                    {{ store.address }}
-                                </span>
-                            </div>
-
-                            <div class="rounded-lg bg-stone-50 p-2.5 sm:p-3 border border-stone-200/60 space-y-0.5">
-                                <div class="text-[10px] sm:text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
-                                    Area Penjemputan
-                                </div>
-                                <div class="text-xs sm:text-sm text-stone-800 font-medium truncate" :title="store.area_name || ''">
-                                    {{ store.area_name || 'Area terverifikasi' }}
-                                </div>
-                                <div v-if="store.postal_code" class="text-[11px] sm:text-xs text-stone-500">
-                                    Kode Pos: {{ store.postal_code }}
+                                <div class="min-w-0 space-y-0.5">
+                                    <p class="line-clamp-2 leading-relaxed text-stone-700 font-medium">
+                                        {{ store.address }}
+                                    </p>
+                                    <p
+                                        v-if="formatStoreArea(store.area_name, store.postal_code)"
+                                        class="text-xs text-stone-500 leading-snug"
+                                    >
+                                        {{ formatStoreArea(store.area_name, store.postal_code) }}
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-4 pt-1 flex items-center justify-between gap-2 text-xs sm:text-sm">
+                    <div class="mt-4 flex items-center justify-between gap-2 text-xs sm:text-sm">
                         <div class="flex items-center min-w-0">
-                            <span
-                                v-if="store.is_default"
-                                class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-md shrink-0"
-                            >
-                                <Check class="size-3.5 text-emerald-600 stroke-[2.5]" />
-                                <span>Alamat Asal Default</span>
-                            </span>
                             <Button
-                                v-else
+                                v-if="!store.is_default"
                                 type="button"
                                 variant="outline"
                                 size="sm"
