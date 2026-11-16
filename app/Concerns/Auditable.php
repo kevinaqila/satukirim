@@ -114,7 +114,7 @@ trait Auditable
             'password',
             'two_factor_secret',
             'two_factor_recovery_codes',
-            'snap_token',
+            'xendit_invoice_id',
             'pendingAuditUpdate',
         ];
 
