@@ -1,66 +1,39 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
-    Banknote,
     Check,
     ChevronDown,
     ChevronRight,
-    Clock,
-    CreditCard,
     Loader2,
     MapPin,
-    Package,
     Phone,
     Plus,
-    RefreshCw,
     Search,
     Store,
-    Trash2,
-    Truck,
     User,
 } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppTopBar from '@/components/AppTopBar.vue';
 import InputError from '@/components/InputError.vue';
+import CourierRatesPanel from '@/components/shipments/CourierRatesPanel.vue';
+import QuickAddStoreDialog from '@/components/shipments/QuickAddStoreDialog.vue';
+import ShipmentItemsCard from '@/components/shipments/ShipmentItemsCard.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getCourierLogo } from '@/lib/status';
+import type {
+    CourierRate,
+    CreateShipmentItem,
+    StoreOption,
+} from '@/types/shipments';
 
-export interface StoreOption {
-    id: number;
+interface DestAreaSuggestion {
+    id: string;
     name: string;
-    phone: string;
-    address: string;
-    biteship_area_id: string;
-    area_name: string | null;
-    postal_code?: string | null;
-    is_default: boolean;
-}
-
-export interface ShipmentItem {
-    name: string;
-    qty: number;
-    weight: number;
-    value: number;
-}
-
-export interface CourierRate {
-    courier_code: string;
-    courier_name: string;
-    courier_service_code: string;
-    courier_service_name: string;
-    duration: string;
-    price: number;
-    type: string;
-    available_for_cash_on_delivery?: boolean;
+    postal_code?: string | number | null;
+    administrative_division_level_1_name?: string;
+    administrative_division_level_2_name?: string;
+    administrative_division_level_3_name?: string;
 }
 
 const props = defineProps<{
@@ -80,6 +53,7 @@ defineOptions({
 });
 
 const showStoreDropdown = ref(false);
+const showAddStoreModal = ref(props.stores.length === 0);
 
 const form = useForm({
     store_id: props.defaultStore?.id ?? (props.stores[0]?.id ?? 0),
@@ -96,7 +70,7 @@ const form = useForm({
             weight: 500,
             value: 50000,
         },
-    ] as ShipmentItem[],
+    ] as CreateShipmentItem[],
     weight: 500,
     item_description: '',
     item_value: 50000,
@@ -128,7 +102,7 @@ const totalWeightGrams = computed(() => {
     const sum = form.items.reduce((acc, it) => {
         const q = Math.max(1, Number(it.qty) || 1);
         const w = Math.max(10, Number(it.weight) || 100);
-        return acc + (q * w);
+        return acc + q * w;
     }, 0);
     return Math.min(10000, Math.max(100, Math.round(sum)));
 });
@@ -142,7 +116,7 @@ const totalItemValue = computed(() => {
     return form.items.reduce((acc, it) => {
         const q = Math.max(1, Number(it.qty) || 1);
         const v = Math.max(0, Number(it.value) || 0);
-        return acc + (q * v);
+        return acc + q * v;
     }, 0);
 });
 
@@ -170,78 +144,6 @@ watch(
     { immediate: true },
 );
 
-const showAddStoreModal = ref(props.stores.length === 0);
-
-const storeForm = useForm({
-    name: '',
-    phone: '',
-    address: '',
-    postal_code: '',
-    biteship_area_id: '',
-    area_name: '',
-    is_default: true,
-    from_shipment: true,
-});
-
-const storeAreaQuery = ref('');
-const storeAreaResults = ref<any[]>([]);
-const isSearchingStoreArea = ref(false);
-const showStoreAreaDropdown = ref(false);
-let storeAreaTimer: any = null;
-
-watch(storeAreaQuery, (val) => {
-    if (!val || val.length < 2) {
-        storeAreaResults.value = [];
-        showStoreAreaDropdown.value = false;
-        if (!val) {
-            storeForm.biteship_area_id = '';
-            storeForm.area_name = '';
-        }
-        return;
-    }
-
-    if (storeForm.area_name && val === storeForm.area_name) {
-        return;
-    }
-
-    clearTimeout(storeAreaTimer);
-    storeAreaTimer = setTimeout(async () => {
-        isSearchingStoreArea.value = true;
-        try {
-            const res = await fetch(`/api/public/areas?q=${encodeURIComponent(val)}`);
-            const data = await res.json();
-            storeAreaResults.value = data.areas || [];
-            showStoreAreaDropdown.value = storeAreaResults.value.length > 0;
-        } catch {
-            storeAreaResults.value = [];
-            showStoreAreaDropdown.value = false;
-        } finally {
-            isSearchingStoreArea.value = false;
-        }
-    }, 350);
-});
-
-const selectStoreArea = (item: any) => {
-    storeForm.biteship_area_id = item.id;
-    storeForm.area_name = item.name;
-    storeAreaQuery.value = item.name;
-    if (item.postal_code) {
-        storeForm.postal_code = String(item.postal_code);
-    }
-    showStoreAreaDropdown.value = false;
-};
-
-const submitNewStore = () => {
-    storeForm.post('/stores', {
-        preserveScroll: true,
-        onSuccess: () => {
-            showAddStoreModal.value = false;
-            storeForm.reset();
-            storeAreaQuery.value = '';
-        },
-    });
-};
-
 const selectStoreOption = (store: StoreOption) => {
     form.store_id = store.id;
     showStoreDropdown.value = false;
@@ -255,13 +157,48 @@ const handleOutsideClick = (e: MouseEvent) => {
     if (!target.closest('.dest-area-dropdown-container')) {
         showDestAreaDropdown.value = false;
     }
-    if (!target.closest('.store-area-dropdown-container')) {
-        showStoreAreaDropdown.value = false;
-    }
 };
+
+const preselectedCourier = ref<{ code: string; service: string } | null>(null);
 
 onMounted(() => {
     document.addEventListener('click', handleOutsideClick);
+
+    const search = new URLSearchParams(window.location.search);
+    const originAreaParam = search.get('origin_area_id');
+    const destAreaIdParam = search.get('destination_area_id');
+    const destAreaNameParam = search.get('destination_area_name');
+    const weightParam = search.get('weight');
+    const courierCodeParam = search.get('courier_code');
+    const courierServiceParam = search.get('courier_service_code');
+
+    if (originAreaParam) {
+        const matchedStore = props.stores.find((s) => s.biteship_area_id === originAreaParam);
+        if (matchedStore) {
+            form.store_id = matchedStore.id;
+        }
+    }
+
+    if (weightParam) {
+        const parsedWeight = Math.round(Number(weightParam));
+        if (!Number.isNaN(parsedWeight) && parsedWeight >= 100 && form.items.length > 0) {
+            form.items[0].qty = 1;
+            form.items[0].weight = Math.min(10000, parsedWeight);
+        }
+    }
+
+    if (courierCodeParam && courierServiceParam) {
+        preselectedCourier.value = {
+            code: courierCodeParam.toLowerCase(),
+            service: courierServiceParam.toLowerCase(),
+        };
+    }
+
+    if (destAreaIdParam && destAreaNameParam) {
+        form.destination_area_id = destAreaIdParam;
+        form.destination_area_name = destAreaNameParam;
+        destAreaQuery.value = destAreaNameParam;
+    }
 });
 
 onUnmounted(() => {
@@ -269,11 +206,11 @@ onUnmounted(() => {
 });
 
 const destAreaQuery = ref('');
-const destAreaResults = ref<any[]>([]);
+const destAreaResults = ref<DestAreaSuggestion[]>([]);
 const isSearchingDestArea = ref(false);
 const showDestAreaDropdown = ref(false);
-let destSearchTimer: any = null;
-let rateReloadTimer: any = null;
+let destSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let rateReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(destAreaQuery, (val) => {
     if (!val || val.length < 2) {
@@ -296,7 +233,7 @@ watch(destAreaQuery, (val) => {
         return;
     }
 
-    clearTimeout(destSearchTimer);
+    if (destSearchTimer) clearTimeout(destSearchTimer);
     destSearchTimer = setTimeout(async () => {
         isSearchingDestArea.value = true;
         try {
@@ -313,7 +250,7 @@ watch(destAreaQuery, (val) => {
     }, 300);
 });
 
-const selectDestArea = (item: any) => {
+const selectDestArea = (item: DestAreaSuggestion) => {
     form.destination_area_id = item.id;
     form.destination_area_name = item.name;
     destAreaQuery.value = item.name;
@@ -341,6 +278,20 @@ const selectCourier = (rate: CourierRate) => {
 
 const ensureValidCourierSelected = () => {
     if (!ratesList.value.length) return;
+
+    if (preselectedCourier.value) {
+        const target = preselectedCourier.value;
+        preselectedCourier.value = null;
+        const matchedPreselected = ratesList.value.find(
+            (r) =>
+                r.courier_code.toLowerCase() === target.code &&
+                r.courier_service_code.toLowerCase() === target.service,
+        );
+        if (matchedPreselected && !isCourierDisabledForCod(matchedPreselected)) {
+            selectCourier(matchedPreselected);
+            return;
+        }
+    }
 
     const stillExists = ratesList.value.find(
         (r) => r.courier_code === form.courier_code && r.courier_service_code === form.courier_service_code,
@@ -422,7 +373,7 @@ watch(
         if (!storeId || !destAreaId || !weight) {
             return;
         }
-        clearTimeout(rateReloadTimer);
+        if (rateReloadTimer) clearTimeout(rateReloadTimer);
         rateReloadTimer = setTimeout(() => {
             fetchRates();
         }, 300);
@@ -593,21 +544,21 @@ const submitOrder = () => {
 
                         <div
                             v-if="selectedStore"
-                            class="p-3 rounded-lg bg-stone-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-stone-600"
+                            class="p-3 sm:p-3.5 rounded-lg bg-stone-50/80 border border-stone-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
                         >
-                            <div class="flex items-start gap-2 min-w-0">
-                                <MapPin class="size-3.5 text-[#853953] shrink-0 mt-0.5" />
+                            <div class="flex items-start gap-2.5 min-w-0">
+                                <MapPin class="size-4 text-[#853953] shrink-0 mt-0.5" />
                                 <div class="min-w-0">
-                                    <span class="font-semibold text-stone-800 block truncate">
-                                        {{ selectedStore.area_name || 'Area Terverifikasi' }}
-                                    </span>
-                                    <span class="text-stone-500 block truncate">
+                                    <p class="text-xs sm:text-sm font-medium text-stone-800 leading-snug">
                                         {{ selectedStore.address }}
-                                    </span>
+                                    </p>
+                                    <p v-if="selectedStore.area_name" class="text-xs text-stone-500 mt-0.5">
+                                        {{ selectedStore.area_name }}
+                                    </p>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1.5 text-stone-500 font-medium shrink-0 pl-5 sm:pl-0">
-                                <Phone class="size-3 text-stone-400" />
+                            <div class="flex items-center gap-1.5 text-xs sm:text-sm text-stone-600 font-medium tabular-nums shrink-0 pl-6.5 sm:pl-0">
+                                <Phone class="size-3.5 text-stone-400 shrink-0" />
                                 <span>{{ selectedStore.phone }}</span>
                             </div>
                         </div>
@@ -746,523 +697,42 @@ const submitOrder = () => {
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3.5">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
-                            <Package class="size-4.5 text-[#853953]" />
-                            <span>Rincian Barang</span>
-                        </h2>
-                        <span class="text-sm font-medium text-stone-500">
-                            Total {{ totalWeightKg }} kg ({{ form.items.length }} barang)
-                        </span>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div
-                            v-for="(item, idx) in form.items"
-                            :key="idx"
-                            class="p-3.5 rounded-xl border border-stone-200/80 bg-stone-50/50 space-y-3 relative transition-all"
-                        >
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm font-semibold text-stone-800">
-                                    Barang {{ idx + 1 }}
-                                </span>
-                                <button
-                                    v-if="form.items.length > 1"
-                                    type="button"
-                                    @click="removeItem(idx)"
-                                    class="text-sm font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
-                                >
-                                    <Trash2 class="size-3.5" />
-                                    <span>Hapus</span>
-                                </button>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                                <div class="sm:col-span-5 space-y-1">
-                                    <Label :for="`item-name-${idx}`" class="text-sm font-medium text-stone-700">
-                                        Nama Barang <span class="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        :id="`item-name-${idx}`"
-                                        v-model="item.name"
-                                        placeholder="Kemeja Flanel, Kopi Arabika"
-                                        class="text-sm h-10 bg-white border border-stone-200"
-                                        required
-                                    />
-                                    <InputError :message="(form.errors as any)[`items.${idx}.name`]" />
-                                </div>
-
-                                <div class="sm:col-span-2 space-y-1">
-                                    <Label :for="`item-qty-${idx}`" class="text-sm font-medium text-stone-700">
-                                        Qty
-                                    </Label>
-                                    <Input
-                                        :id="`item-qty-${idx}`"
-                                        v-model.number="item.qty"
-                                        type="number"
-                                        min="1"
-                                        max="1000"
-                                        placeholder="1"
-                                        class="text-sm h-10 bg-white border border-stone-200"
-                                        required
-                                    />
-                                    <InputError :message="(form.errors as any)[`items.${idx}.qty`]" />
-                                </div>
-
-                                <div class="sm:col-span-2 space-y-1">
-                                    <Label :for="`item-weight-${idx}`" class="text-sm font-medium text-stone-700">
-                                        Berat (gr)
-                                    </Label>
-                                    <Input
-                                        :id="`item-weight-${idx}`"
-                                        v-model.number="item.weight"
-                                        type="number"
-                                        min="10"
-                                        max="10000"
-                                        step="1"
-                                        placeholder="250"
-                                        class="text-sm h-10 bg-white border border-stone-200"
-                                        required
-                                    />
-                                    <InputError :message="(form.errors as any)[`items.${idx}.weight`]" />
-                                </div>
-
-                                <div class="sm:col-span-3 space-y-1">
-                                    <Label :for="`item-val-${idx}`" class="text-sm font-medium text-stone-700">
-                                        Harga per item (Rp)
-                                    </Label>
-                                    <Input
-                                        :id="`item-val-${idx}`"
-                                        v-model.number="item.value"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        placeholder="50000"
-                                        class="text-sm h-10 bg-white border border-stone-200"
-                                        required
-                                    />
-                                    <InputError :message="(form.errors as any)[`items.${idx}.value`]" />
-                                </div>
-                            </div>
-
-                            <div v-if="Number(item.qty) > 1" class="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-500 pt-1 border-t border-stone-200/60">
-                                <span>Subtotal berat: {{ ((item.qty || 1) * (item.weight || 100)).toLocaleString('id-ID') }} gr</span>
-                                <span>Subtotal nilai: Rp {{ ((item.qty || 1) * (item.value || 0)).toLocaleString('id-ID') }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between pt-1">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="addItem"
-                            :disabled="form.items.length >= 10"
-                            class="text-sm font-medium text-primary border border-stone-200 hover:bg-stone-50 h-9 px-3.5 rounded-lg cursor-pointer inline-flex items-center gap-1.5"
-                        >
-                            <Plus class="size-4" />
-                            <span>Tambah Barang</span>
-                        </Button>
-
-                        <span class="text-sm text-stone-500">
-                            Maksimal 10 barang (total berat maks. 10 kg)
-                        </span>
-                    </div>
-
-                    <InputError :message="(form.errors as any).items" />
-                    <InputError :message="form.errors.item_value" />
-                </div>
+                <ShipmentItemsCard
+                    :items="form.items"
+                    :total-weight-kg="totalWeightKg"
+                    :errors="(form.errors as Record<string, string | undefined>)"
+                    @add-item="addItem"
+                    @remove-item="removeItem"
+                />
             </div>
 
             <div class="lg:col-span-5 lg:sticky lg:top-4 space-y-3.5 sm:space-y-4">
-                <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs p-4 sm:p-5 space-y-3.5">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-base font-semibold text-[#2C2C2C] flex items-center gap-2">
-                            <Truck class="size-4.5 text-[#853953]" />
-                            <span>Pilih Layanan Ekspedisi</span>
-                        </h2>
-                        <Button
-                            v-if="form.destination_area_id"
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            @click="fetchRates"
-                            :disabled="isLoadingRates"
-                            class="h-8 px-2.5 text-xs font-semibold text-primary hover:bg-[#853953]/10 cursor-pointer"
-                        >
-                            <RefreshCw class="size-3.5 mr-1.5" :class="isLoadingRates ? 'animate-spin' : ''" />
-                            Refresh
-                        </Button>
-                    </div>
-
-                    <div
-                        v-if="!form.destination_area_id"
-                        class="py-8 px-4 rounded-xl bg-stone-50/80 text-center space-y-2"
-                    >
-                        <MapPin class="size-7 mx-auto text-stone-400" />
-                        <p class="text-sm font-semibold text-stone-700">
-                            Tujuan Pengiriman Belum Dipilih
-                        </p>
-                        <p class="text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
-                            Pilih Kecamatan atau Kota Tujuan di sebelah kiri untuk melihat tarif pengiriman.
-                        </p>
-                    </div>
-
-                    <div v-else-if="isLoadingRates" class="py-10 text-center space-y-2.5">
-                        <Loader2 class="size-7 animate-spin mx-auto text-[#853953]" />
-                        <p class="text-sm font-semibold text-stone-700">
-                            Mengecek Tarif Ekspedisi...
-                        </p>
-                        <p class="text-xs text-stone-500">
-                            Memeriksa tarif layanan Reguler & Next Day
-                        </p>
-                    </div>
-
-                    <div v-else-if="ratesFetchError" class="py-8 px-4 rounded-xl bg-stone-50 text-center space-y-3">
-                        <p class="text-sm font-semibold text-stone-700">
-                            {{ ratesFetchError }}
-                        </p>
-                        <Button type="button" size="sm" @click="fetchRates" class="bg-[#853953] text-white cursor-pointer">
-                            Coba Lagi
-                        </Button>
-                    </div>
-
-                    <div v-else class="space-y-2 max-h-80 overflow-y-auto pr-1">
-                        <div
-                            v-if="form.payment_type === 'cod' && ratesList.length > 0 && !ratesList.some(r => r.available_for_cash_on_delivery !== false)"
-                            class="p-3 rounded-lg bg-stone-50 border border-stone-200 text-xs text-stone-600"
-                        >
-                            Tidak ada ekspedisi yang mendukung COD untuk rute ini. Silakan gunakan metode Non-COD.
-                        </div>
-
-                        <div
-                            v-for="rate in ratesList"
-                            :key="`${rate.courier_code}-${rate.courier_service_code}`"
-                            @click="isCourierDisabledForCod(rate) ? null : selectCourier(rate)"
-                            class="p-3 rounded-xl transition-all flex items-center justify-between gap-3"
-                            :class="[
-                                isCourierDisabledForCod(rate)
-                                    ? 'opacity-55 cursor-not-allowed bg-stone-100/70 border border-stone-200/60 select-none'
-                                    : (form.courier_code === rate.courier_code &&
-                                       form.courier_service_code === rate.courier_service_code
-                                        ? 'bg-[#853953]/8 ring-1.5 ring-[#853953] cursor-pointer'
-                                        : 'bg-stone-50/70 hover:bg-stone-100/80 cursor-pointer')
-                            ]"
-                        >
-                            <div class="flex items-center gap-3 min-w-0">
-                                <div class="h-8 w-12 bg-white rounded-md border border-stone-200/70 p-1 flex items-center justify-center shrink-0">
-                                    <img
-                                        v-if="getCourierLogo(rate.courier_code)"
-                                        :src="getCourierLogo(rate.courier_code)!"
-                                        :alt="rate.courier_name"
-                                        class="max-h-5 max-w-full object-contain"
-                                        :class="isCourierDisabledForCod(rate) ? 'grayscale' : ''"
-                                    />
-                                    <span v-else class="text-xs font-semibold text-stone-600 uppercase">
-                                        {{ rate.courier_code }}
-                                    </span>
-                                </div>
-
-                                <div class="min-w-0">
-                                    <div class="text-sm font-semibold text-stone-900 truncate">
-                                        {{ rate.courier_name }} {{ rate.courier_service_name }}
-                                    </div>
-                                    <div class="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
-                                        <span class="flex items-center gap-1">
-                                            <Clock class="size-3" /> {{ rate.duration }}
-                                        </span>
-                                        <span
-                                            v-if="rate.available_for_cash_on_delivery === false && form.payment_type === 'cod'"
-                                            class="text-xs font-medium text-rose-600"
-                                        >
-                                            Tidak Menerima COD
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-2.5 shrink-0">
-                                <div class="text-right">
-                                    <div
-                                        class="text-sm font-semibold tabular-nums"
-                                        :class="isCourierDisabledForCod(rate) ? 'text-stone-400' : 'text-primary'"
-                                    >
-                                        Rp {{ Number(rate.price).toLocaleString('id-ID') }}
-                                    </div>
-                                </div>
-                                <div
-                                    class="size-4.5 rounded-full border flex items-center justify-center shrink-0"
-                                    :class="[
-                                        isCourierDisabledForCod(rate)
-                                            ? 'border-stone-200 bg-stone-100 text-stone-300'
-                                            : (form.courier_code === rate.courier_code &&
-                                               form.courier_service_code === rate.courier_service_code
-                                                ? 'border-[#853953] bg-[#853953] text-white'
-                                                : 'border-stone-300 bg-white')
-                                    ]"
-                                >
-                                    <Check
-                                        v-if="
-                                            !isCourierDisabledForCod(rate) &&
-                                             form.courier_code === rate.courier_code &&
-                                             form.courier_service_code === rate.courier_service_code
-                                        "
-                                        class="size-3"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <InputError :message="form.errors.courier_code" />
-                    </div>
-
-                    <div class="pt-3.5 border-t border-stone-100 space-y-2">
-                        <div class="text-xs font-semibold text-stone-600 uppercase tracking-wider">
-                            Metode Pembayaran
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                @click="form.payment_type = 'non_cod'"
-                                class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
-                                :class="
-                                    form.payment_type === 'non_cod'
-                                        ? 'border-[#853953] bg-[#853953]/5 ring-1.5 ring-[#853953]'
-                                        : 'border-stone-200 bg-stone-50/50 hover:bg-stone-100/70'
-                                "
-                            >
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-sm font-semibold text-stone-900">Non-COD</span>
-                                    <CreditCard class="size-3.5 text-[#853953]" />
-                                </div>
-                                <span class="text-xs text-stone-500 leading-normal">
-                                    Bayar online sekarang via QRIS / VA
-                                </span>
-                            </button>
-
-                            <button
-                                type="button"
-                                @click="form.payment_type = 'cod'"
-                                class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
-                                :class="
-                                    form.payment_type === 'cod'
-                                        ? 'border-[#853953] bg-[#853953]/5 ring-1.5 ring-[#853953]'
-                                        : 'border-stone-200 bg-stone-50/50 hover:bg-stone-100/70'
-                                "
-                            >
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-sm font-semibold text-stone-900">COD</span>
-                                    <Banknote class="size-3.5 text-[#853953]" />
-                                </div>
-                                <span class="text-xs text-stone-500 leading-normal">
-                                    Bayar di tempat saat paket sampai
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="pt-3.5 border-t border-stone-100 space-y-3">
-                        <div class="space-y-1.5 text-sm">
-                            <div class="flex items-center justify-between text-stone-600">
-                                <span>Berat Paket</span>
-                                <span class="font-semibold text-stone-800 tabular-nums">
-                                    {{ totalWeightKg }} kg ({{ form.weight.toLocaleString('id-ID') }} gr)
-                                </span>
-                            </div>
-                            <div class="flex items-center justify-between text-stone-600">
-                                <span class="truncate pr-2">
-                                    Ongkos Kirim {{ form.courier_service_name ? `(${form.courier_service_name})` : '' }}
-                                </span>
-                                <span class="font-semibold text-stone-800 tabular-nums shrink-0">
-                                    Rp {{ Number(form.shipping_fee).toLocaleString('id-ID') }}
-                                </span>
-                            </div>
-                            <div v-if="form.payment_type === 'cod'" class="flex items-center justify-between text-stone-600">
-                                <span>Nilai Barang (COD)</span>
-                                <span class="font-semibold text-stone-800 tabular-nums shrink-0">
-                                    Rp {{ Number(form.item_value || 0).toLocaleString('id-ID') }}
-                                </span>
-                            </div>
-                            <div class="flex items-center justify-between text-stone-600">
-                                <span>Biaya Layanan</span>
-                                <span class="font-semibold text-stone-800 tabular-nums shrink-0">
-                                    Rp 1.000
-                                </span>
-                            </div>
-                        </div>
-
-                        <div v-if="form.payment_type === 'cod'" class="space-y-2">
-                            <div class="p-3 rounded-lg bg-stone-50/90 space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-medium text-stone-700">Tagihan ke Penerima (COD)</span>
-                                    <span class="text-base font-bold text-[#853953] tabular-nums">
-                                        Rp {{ (Number(form.shipping_fee) + Number(form.item_value || 0)).toLocaleString('id-ID') }}
-                                    </span>
-                                </div>
-                                <div class="flex items-center justify-between pt-1.5 border-t border-stone-200/60 text-sm">
-                                    <span class="text-stone-500">Hak Bersih Penjual (Saldo COD):</span>
-                                    <span class="font-semibold text-stone-900 tabular-nums">
-                                        Rp {{ Math.max(0, Number(form.item_value || 0) - 1000).toLocaleString('id-ID') }}
-                                    </span>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 leading-relaxed">
-                                Saldo COD bersih otomatis masuk ke Saldo Dompet Anda setelah paket berhasil terkirim (biaya layanan Rp 1.000).
-                            </p>
-                            <p v-if="!form.item_value || Number(form.item_value) < 1000" class="text-xs text-rose-600 font-medium">
-                                * Nilai barang untuk pengiriman COD minimal Rp 1.000 agar dapat diproses.
-                            </p>
-                        </div>
-
-                        <div v-else class="p-3 rounded-lg bg-stone-50/90 flex items-center justify-between">
-                            <span class="text-sm font-medium text-stone-800">Total Tagihan</span>
-                            <span class="text-lg font-bold text-primary tabular-nums">
-                                Rp {{ (Number(form.shipping_fee) + 1000).toLocaleString('id-ID') }}
-                            </span>
-                        </div>
-
-                        <Button
-                            type="submit"
-                            :disabled="!canSubmit"
-                            class="w-full bg-[#853953] hover:bg-[#6c2e43] text-white font-semibold h-11 text-sm rounded-lg cursor-pointer shadow-xs"
-                        >
-                            <Loader2 v-if="form.processing" class="mr-2 size-4 animate-spin" />
-                            <span>{{ form.payment_type === 'cod' ? 'Buat Pengiriman COD' : 'Buat Pengiriman & Bayar' }}</span>
-                        </Button>
-                    </div>
-                </div>
+                <CourierRatesPanel
+                    :destination-area-id="form.destination_area_id"
+                    :is-loading-rates="isLoadingRates"
+                    :rates-fetch-error="ratesFetchError"
+                    :rates-list="ratesList"
+                    :courier-code="form.courier_code"
+                    :courier-service-code="form.courier_service_code"
+                    :courier-service-name="form.courier_service_name"
+                    :shipping-fee="form.shipping_fee"
+                    :payment-type="form.payment_type"
+                    :weight="form.weight"
+                    :total-weight-kg="totalWeightKg"
+                    :item-value="form.item_value"
+                    :can-submit="canSubmit"
+                    :processing="form.processing"
+                    :courier-error="form.errors.courier_code"
+                    @refresh="fetchRates"
+                    @select-courier="selectCourier"
+                    @update:payment-type="form.payment_type = $event"
+                />
             </div>
         </form>
 
-        <Dialog :open="showAddStoreModal" @update:open="showAddStoreModal = $event">
-            <DialogContent
-                @pointer-down-outside="(e) => e.preventDefault()"
-                @interact-outside="(e) => e.preventDefault()"
-                class="sm:max-w-lg bg-white p-5 sm:p-6 rounded-xl border border-stone-200 shadow-xl max-h-[90vh] overflow-y-auto"
-            >
-                <DialogHeader class="text-left space-y-1">
-                    <DialogTitle class="text-base sm:text-lg font-semibold text-stone-900">
-                        {{ stores.length === 0 ? 'Atur Titik Penjemputan Pertama' : 'Tambah Titik Penjemputan' }}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <form @submit.prevent="submitNewStore" class="space-y-3.5 mt-2">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div class="space-y-1">
-                            <Label for="modal-store-name" class="text-sm font-medium text-stone-700">
-                                Nama Toko / Gudang<span class="text-red-500 ml-1">*</span>
-                            </Label>
-                            <Input
-                                id="modal-store-name"
-                                v-model="storeForm.name"
-                                placeholder="Gudang Utama Surabaya"
-                                class="h-10 text-sm bg-white border-stone-200"
-                                required
-                            />
-                            <InputError :message="storeForm.errors.name" />
-                        </div>
-
-                        <div class="space-y-1">
-                            <Label for="modal-store-phone" class="text-sm font-medium text-stone-700">
-                                Nomor WhatsApp Pengirim<span class="text-red-500 ml-1">*</span>
-                            </Label>
-                            <div class="relative">
-                                <Phone class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
-                                <Input
-                                    id="modal-store-phone"
-                                    v-model="storeForm.phone"
-                                    placeholder="081234567890"
-                                    class="h-10 pl-9 text-sm bg-white border-stone-200"
-                                    required
-                                />
-                            </div>
-                            <InputError :message="storeForm.errors.phone" />
-                        </div>
-                    </div>
-
-                    <div class="space-y-1 relative store-area-dropdown-container">
-                        <Label for="modal-store-area" class="text-sm font-medium text-stone-700 flex items-center justify-between">
-                            <span>Kecamatan & Kota Penjemputan<span class="text-red-500 ml-1">*</span></span>
-                            <span class="text-xs text-[#853953] font-medium">Wajib pilih dari daftar</span>
-                        </Label>
-
-                        <div class="relative">
-                            <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
-                            <Input
-                                id="modal-store-area"
-                                v-model="storeAreaQuery"
-                                placeholder="Ketik kelurahan atau kecamatan penjemputan..."
-                                class="h-10 pl-9 pr-9 text-sm bg-white border-stone-200"
-                                autocomplete="off"
-                                @focus="storeAreaResults.length > 0 ? (showStoreAreaDropdown = true) : null"
-                            />
-                            <div v-if="isSearchingStoreArea" class="absolute right-3 top-1/2 -translate-y-1/2">
-                                <Loader2 class="size-4 animate-spin text-[#853953]" />
-                            </div>
-                        </div>
-
-                        <div
-                            v-if="showStoreAreaDropdown && storeAreaResults.length > 0"
-                            class="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white shadow-lg"
-                        >
-                            <div
-                                v-for="area in storeAreaResults"
-                                :key="area.id"
-                                @click="selectStoreArea(area)"
-                                class="p-2.5 hover:bg-stone-50 cursor-pointer border-b border-stone-100 last:border-none transition-colors"
-                            >
-                                <div class="text-sm font-semibold text-stone-900">
-                                    {{ area.name }}
-                                </div>
-                                <div class="text-xs text-stone-500">
-                                    {{ area.administrative_division_level_3_name }}, {{ area.administrative_division_level_2_name }}, {{ area.administrative_division_level_1_name }}
-                                    <span v-if="area.postal_code">({{ area.postal_code }})</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <span v-if="storeForm.errors.biteship_area_id" class="text-xs text-red-600 font-medium block">
-                            Pilih area penjemputan dari daftar pencarian.
-                        </span>
-                    </div>
-
-                    <div class="space-y-1">
-                        <Label for="modal-store-address" class="text-sm font-medium text-stone-700">
-                            Alamat Lengkap & Patokan<span class="text-red-500 ml-1">*</span>
-                        </Label>
-                        <textarea
-                            id="modal-store-address"
-                            v-model="storeForm.address"
-                            rows="2"
-                            placeholder="Jl. Raya Sukolilo No. 45, Ruko B3 (sebelah Bank BCA)"
-                            class="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#853953] focus-visible:ring-offset-1"
-                            required
-                        />
-                        <InputError :message="storeForm.errors.address" />
-                    </div>
-
-                    <DialogFooter class="pt-2 gap-2 sm:justify-end">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showAddStoreModal = false"
-                            class="text-xs sm:text-sm h-9 sm:h-10 cursor-pointer border-stone-200"
-                        >
-                            Nanti Saja
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="storeForm.processing || !storeForm.biteship_area_id"
-                            class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 cursor-pointer"
-                        >
-                            <Loader2 v-if="storeForm.processing" class="mr-2 size-4 animate-spin" />
-                            <span>Simpan & Gunakan Toko</span>
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+        <QuickAddStoreDialog
+            v-model:open="showAddStoreModal"
+            :has-existing-stores="stores.length > 0"
+        />
     </div>
 </template>
