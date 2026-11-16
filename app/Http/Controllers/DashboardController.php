@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Withdrawal;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,10 +27,10 @@ class DashboardController extends Controller
         $metrics = $this->calculateMetrics($shipmentQuery);
 
         $roleData = $isSuperAdmin
-            ? $this->getSuperAdminData($user, $metrics['total'], $metrics['total_volume'], $metrics['delivered'])
+            ? $this->getSuperAdminData($user, $metrics)
             : $this->getUmkmData($user);
 
-        $trendData = $this->calculateSevenDayTrend($isSuperAdmin, Carbon::now('Asia/Jakarta'), $shipmentQuery);
+        $trendData = $this->calculateSevenDayTrend(Carbon::now('Asia/Jakarta'), $shipmentQuery);
 
         $allShipments = (clone $shipmentQuery)->get([
             'id', 'store_id', 'order_number', 'status', 'recipient_name',
@@ -38,9 +39,8 @@ class DashboardController extends Controller
             'total_amount', 'waybill_number', 'tracking_history', 'updated_at', 'created_at',
         ]);
 
-        $courierData = $this->calculateCourierAnalytics($shipmentQuery, $allShipments, $metrics['total']);
+        $courierPerformance = $this->calculateCourierAnalytics($allShipments, $metrics['total']);
         $serviceBreakdown = $this->calculateServiceBreakdown($allShipments);
-        $categoryBreakdown = $this->calculateCategoryBreakdown($allShipments, $metrics['total']);
         $storePerformance = $this->calculateStorePerformance($isSuperAdmin, $user, $allShipments, $metrics['total']);
         $liveTrackingFeed = $this->calculateLiveTrackingFeed($allShipments);
         $topDestinations = $this->calculateTopDestinations($allShipments);
@@ -52,15 +52,13 @@ class DashboardController extends Controller
             'metrics' => $metrics,
             'sevenDayTrend' => $trendData['trend'],
             'weeklyGrowth' => $trendData['weeklyGrowth'],
-            'topCourier' => $courierData['topCourier'],
-            'topCouriers' => $courierData['topCouriers'],
             'topDestinations' => $topDestinations,
-            'courierPerformance' => $courierData['courierPerformance'],
+            'courierPerformance' => $courierPerformance,
             'serviceBreakdown' => $serviceBreakdown,
-            'categoryBreakdown' => $categoryBreakdown,
             'storePerformance' => $storePerformance,
             'liveTrackingFeed' => $liveTrackingFeed,
             'recentShipments' => $roleData['recentShipments'],
+            'walletStats' => $roleData['walletStats'],
             'defaultStore' => $defaultStore ? [
                 'id' => $defaultStore->id,
                 'name' => $defaultStore->name,
@@ -78,7 +76,6 @@ class DashboardController extends Controller
     /**
      * Hitung metrik ringkasan status pengiriman.
      *
-     * @param  Builder|HasMany  $shipmentQuery
      * @return array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, total_volume: int}
      */
     private function calculateMetrics(Builder|HasMany $shipmentQuery): array
@@ -103,10 +100,16 @@ class DashboardController extends Controller
     /**
      * Ambil data analitik platform khusus Super Admin.
      *
-     * @return array{recentShipments: Collection, storesCount: int, defaultStore: null, platformStats: array, recentAuditLogs: array, umkmList: array}
+     * @param  array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, total_volume: int}  $metrics
+     * @return array{recentShipments: Collection, storesCount: int, defaultStore: null, walletStats: null, platformStats: array, recentAuditLogs: array, umkmList: array}
      */
-    private function getSuperAdminData(User $user, int $totalCount, int $totalVolume, int $deliveredCount): array
+    private function getSuperAdminData(User $user, array $metrics): array
     {
+        $totalCount = $metrics['total'];
+        $totalVolume = $metrics['total_volume'];
+        $deliveredCount = $metrics['delivered'];
+        $eligibleForDeliveryCount = $metrics['waiting_pickup'] + $metrics['in_transit'] + $deliveredCount;
+
         $recentShipments = Shipment::with(['user:id,name,email', 'store:id,name,phone'])
             ->latest()
             ->take(6)
@@ -114,17 +117,18 @@ class DashboardController extends Controller
 
         $storesCount = Store::count();
         $paidShipmentsCount = Shipment::whereNotIn('status', ['pending_payment', 'cancelled'])->count();
+        $cancelledShipmentsCount = Shipment::whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned'])->count();
         $adminWallet = $user->getOrCreateWallet()->syncBalances();
         $platformRevenue = (int) $adminWallet->available_balance;
-        $totalAuditLogs = AuditLog::count();
 
-        $auditShipmentCount = AuditLog::where('auditable_type', 'Shipment')->count();
-        $auditStoreCount = AuditLog::where('auditable_type', 'Store')->count();
-        $auditUserCount = AuditLog::where('auditable_type', 'User')->count();
+        $pendingWithdrawalsQuery = Withdrawal::whereIn('status', ['pending', 'processing']);
+        $completedWithdrawalsQuery = Withdrawal::where('status', 'completed');
 
-        $nonCodShipments = Shipment::where('payment_method', '!=', 'cod')
-            ->whereNotNull('payment_method')
-            ->whereNotIn('status', ['pending_payment', 'cancelled']);
+        $nonCodShipments = Shipment::whereNotIn('status', ['pending_payment', 'cancelled'])
+            ->where(function ($query) {
+                $query->where('payment_method', '!=', 'cod')
+                    ->orWhereNull('payment_method');
+            });
         $codShipments = Shipment::where('payment_method', 'cod')
             ->whereNotIn('status', ['pending_payment', 'cancelled']);
 
@@ -134,11 +138,6 @@ class DashboardController extends Controller
         $codCount = (clone $codShipments)->count();
         $codVolume = (int) (clone $codShipments)->sum('total_amount');
 
-        if ($nonCodCount === 0 && $codCount === 0 && $totalCount > 0) {
-            $nonCodCount = $totalCount;
-            $nonCodVolume = $totalVolume;
-        }
-
         $platformStats = [
             'total_users' => User::count(),
             'total_umkm' => User::where('role', 'umkm')->count(),
@@ -146,20 +145,19 @@ class DashboardController extends Controller
             'total_stores' => $storesCount,
             'total_shipments' => $totalCount,
             'paid_shipments' => $paidShipmentsCount,
-            'delivered_rate' => $totalCount > 0 ? (int) round(($deliveredCount / $totalCount) * 100) : 0,
+            'cancelled_shipments' => $cancelledShipmentsCount,
+            'delivered_rate' => $eligibleForDeliveryCount > 0 ? (int) round(($deliveredCount / $eligibleForDeliveryCount) * 100) : 0,
             'platform_revenue' => $platformRevenue,
             'total_volume' => $totalVolume,
-            'total_audit_logs' => $totalAuditLogs,
-            'audit_created' => AuditLog::where('event', 'created')->count(),
-            'audit_updated' => AuditLog::where('event', 'updated')->count(),
-            'audit_deleted' => AuditLog::where('event', 'deleted')->count(),
-            'audit_shipment_count' => $auditShipmentCount,
-            'audit_store_count' => $auditStoreCount,
-            'audit_user_count' => $auditUserCount,
+            'total_audit_logs' => AuditLog::count(),
             'non_cod_count' => $nonCodCount,
             'non_cod_volume' => $nonCodVolume,
             'cod_count' => $codCount,
             'cod_volume' => $codVolume,
+            'pending_withdrawals_count' => (clone $pendingWithdrawalsQuery)->count(),
+            'pending_withdrawals_amount' => (int) (clone $pendingWithdrawalsQuery)->sum('amount'),
+            'completed_withdrawals_count' => (clone $completedWithdrawalsQuery)->count(),
+            'completed_withdrawals_amount' => (int) (clone $completedWithdrawalsQuery)->sum('amount'),
         ];
 
         $umkmList = User::where('role', 'umkm')
@@ -223,6 +221,7 @@ class DashboardController extends Controller
             'recentShipments' => $recentShipments,
             'storesCount' => $storesCount,
             'defaultStore' => null,
+            'walletStats' => null,
             'platformStats' => $platformStats,
             'recentAuditLogs' => $recentAuditLogs,
             'umkmList' => $umkmList,
@@ -230,9 +229,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Ambil data pengiriman dan toko khusus user UMKM.
+     * Ambil data pengiriman, dompet COD, dan toko khusus user UMKM.
      *
-     * @return array{recentShipments: Collection, defaultStore: Store|null, storesCount: int, platformStats: null, recentAuditLogs: array, umkmList: array}
+     * @return array{recentShipments: Collection, defaultStore: Store|null, storesCount: int, walletStats: array{available_balance: int, pending_balance: int, total_withdrawn: int}, platformStats: null, recentAuditLogs: array, umkmList: array}
      */
     private function getUmkmData(User $user): array
     {
@@ -242,10 +241,17 @@ class DashboardController extends Controller
             ->take(6)
             ->get();
 
+        $wallet = $user->getOrCreateWallet()->syncBalances();
+
         return [
             'recentShipments' => $recentShipments,
             'defaultStore' => $user->defaultStore(),
             'storesCount' => $user->stores()->count(),
+            'walletStats' => [
+                'available_balance' => (int) $wallet->available_balance,
+                'pending_balance' => (int) $wallet->pending_balance,
+                'total_withdrawn' => (int) $wallet->total_withdrawn,
+            ],
             'platformStats' => null,
             'recentAuditLogs' => [],
             'umkmList' => [],
@@ -253,12 +259,11 @@ class DashboardController extends Controller
     }
 
     /**
-     * Hitung grafik tren 7 hari terakhir beserta persentase pertumbuhan mingguan.
+     * Hitung grafik tren volume pengiriman 7 hari terakhir beserta persentase pertumbuhan mingguan.
      *
-     * @param  Builder|HasMany  $shipmentQuery
      * @return array{trend: array<int, array{date: string, day: string, count: int}>, weeklyGrowth: int}
      */
-    private function calculateSevenDayTrend(bool $isSuperAdmin, Carbon $today, Builder|HasMany $shipmentQuery): array
+    private function calculateSevenDayTrend(Carbon $today, Builder|HasMany $shipmentQuery): array
     {
         $tz = 'Asia/Jakarta';
         $today = (clone $today)->setTimezone($tz)->startOfDay();
@@ -277,43 +282,25 @@ class DashboardController extends Controller
 
         $startUtc = (clone $today)->subDays(6)->startOfDay()->setTimezone('UTC');
 
-        if ($isSuperAdmin) {
-            $recent7DaysLogs = AuditLog::where('created_at', '>=', $startUtc)
-                ->get(['id', 'created_at']);
+        $recent7DaysShipments = (clone $shipmentQuery)
+            ->where('created_at', '>=', $startUtc)
+            ->get(['id', 'created_at']);
 
-            foreach ($recent7DaysLogs as $l) {
-                $lDate = $l->created_at->timezone($tz)->toDateString();
-                if (isset($sevenDayTrend[$lDate])) {
-                    $sevenDayTrend[$lDate]['count']++;
-                }
+        foreach ($recent7DaysShipments as $s) {
+            $sDate = $s->created_at->timezone($tz)->toDateString();
+            if (isset($sevenDayTrend[$sDate])) {
+                $sevenDayTrend[$sDate]['count']++;
             }
-
-            $prevStartUtc = (clone $today)->subDays(13)->startOfDay()->setTimezone('UTC');
-            $prevEndUtc = (clone $today)->subDays(7)->endOfDay()->setTimezone('UTC');
-
-            $previous7DaysCount = AuditLog::whereBetween('created_at', [$prevStartUtc, $prevEndUtc])->count();
-            $current7DaysCount = $recent7DaysLogs->count();
-        } else {
-            $recent7DaysShipments = (clone $shipmentQuery)
-                ->where('created_at', '>=', $startUtc)
-                ->get(['id', 'created_at']);
-
-            foreach ($recent7DaysShipments as $s) {
-                $sDate = $s->created_at->timezone($tz)->toDateString();
-                if (isset($sevenDayTrend[$sDate])) {
-                    $sevenDayTrend[$sDate]['count']++;
-                }
-            }
-
-            $prevStartUtc = (clone $today)->subDays(13)->startOfDay()->setTimezone('UTC');
-            $prevEndUtc = (clone $today)->subDays(7)->endOfDay()->setTimezone('UTC');
-
-            $previous7DaysCount = (clone $shipmentQuery)
-                ->whereBetween('created_at', [$prevStartUtc, $prevEndUtc])
-                ->count();
-
-            $current7DaysCount = $recent7DaysShipments->count();
         }
+
+        $prevStartUtc = (clone $today)->subDays(13)->startOfDay()->setTimezone('UTC');
+        $prevEndUtc = (clone $today)->subDays(7)->endOfDay()->setTimezone('UTC');
+
+        $previous7DaysCount = (clone $shipmentQuery)
+            ->whereBetween('created_at', [$prevStartUtc, $prevEndUtc])
+            ->count();
+
+        $current7DaysCount = $recent7DaysShipments->count();
 
         if ($previous7DaysCount > 0) {
             $weeklyGrowth = (int) round((($current7DaysCount - $previous7DaysCount) / $previous7DaysCount) * 100);
@@ -348,53 +335,20 @@ class DashboardController extends Controller
     }
 
     /**
-     * Hitung metrik analitik ekspedisi dan performa kurir.
+     * Hitung metrik performa per ekspedisi yang aktif digunakan.
      *
-     * @param  Builder|HasMany  $shipmentQuery
-     * @return array{topCourier: array|null, topCouriers: array, courierPerformance: array}
+     * @return array<int, array{code: string, name: string, count: int, delivered_count: int, active_count: int, avg_fee: int, total_fee: int, delivery_rate: int, share_percentage: int}>
      */
-    private function calculateCourierAnalytics(Builder|HasMany $shipmentQuery, Collection $allShipments, int $totalCount): array
+    private function calculateCourierAnalytics(Collection $allShipments, int $totalCount): array
     {
-        $courierStats = (clone $shipmentQuery)
-            ->selectRaw('courier_code, count(*) as count')
-            ->whereNotNull('courier_code')
-            ->where('courier_code', '!=', '')
-            ->groupBy('courier_code')
-            ->orderByDesc('count')
-            ->take(3)
-            ->get();
-
-        $totalCourierShipments = (clone $shipmentQuery)
-            ->whereNotNull('courier_code')
-            ->where('courier_code', '!=', '')
-            ->count();
-
-        $topCouriers = $courierStats->map(function ($top) use ($totalCourierShipments) {
-            $code = strtolower((string) $top->courier_code);
-
-            return [
-                'code' => $code,
-                'name' => $this->mapCourierName($code),
-                'count' => (int) $top->count,
-                'percentage' => $totalCourierShipments > 0 ? (int) round(($top->count / $totalCourierShipments) * 100) : 0,
-            ];
-        })->values()->all();
-
-        $topCourier = $topCouriers[0] ?? null;
-
-        $groupedCouriers = $allShipments
-            ->whereNotNull('courier_code')
-            ->groupBy(fn ($s) => strtolower((string) $s->courier_code));
-
-        $officialCouriers = ['jne', 'sicepat', 'jnt', 'anteraja', 'ninja', 'lion', 'pos', 'tiki'];
-
-        $courierPerformance = collect($officialCouriers)
-            ->map(function (string $code) use ($groupedCouriers, $totalCount) {
-                $group = $groupedCouriers->get($code, collect());
+        return $allShipments
+            ->filter(fn ($s) => ! empty($s->courier_code))
+            ->groupBy(fn ($s) => strtolower((string) $s->courier_code))
+            ->map(function (Collection $group, string $code) use ($totalCount) {
                 $count = $group->count();
                 $delivered = $group->where('status', 'delivered')->count();
                 $inTransit = $group->whereIn('status', ['in_transit', 'waiting_pickup', 'paid', 'allocated', 'picking_up'])->count();
-                $paidGroup = $group->where('status', '!=', 'pending_payment')->where('status', '!=', 'cancelled');
+                $paidGroup = $group->whereNotIn('status', ['pending_payment', 'cancelled']);
                 $totalFee = (int) $paidGroup->sum('total_amount');
                 $avgFee = $count > 0 ? (int) round($group->avg('total_amount')) : 0;
                 $completedOrActive = $delivered + $inTransit;
@@ -415,12 +369,6 @@ class DashboardController extends Controller
             ->sortByDesc('count')
             ->values()
             ->all();
-
-        return [
-            'topCourier' => $topCourier,
-            'topCouriers' => $topCouriers,
-            'courierPerformance' => $courierPerformance,
-        ];
     }
 
     /**
@@ -458,30 +406,6 @@ class DashboardController extends Controller
 
             return $item;
         })->values()->all();
-    }
-
-    /**
-     * Hitung kategori barang yang paling sering dikirim.
-     */
-    private function calculateCategoryBreakdown(Collection $allShipments, int $totalCount): array
-    {
-        return $allShipments
-            ->where('status', '!=', 'cancelled')
-            ->groupBy(fn ($s) => $s->item_category ?: 'Umum')
-            ->map(function ($group, $category) use ($totalCount) {
-                $count = $group->count();
-
-                return [
-                    'category' => $category,
-                    'count' => $count,
-                    'total_spend' => (int) $group->where('status', '!=', 'pending_payment')->sum('total_amount'),
-                    'percentage' => $totalCount > 0 ? (int) round(($count / $totalCount) * 100) : 0,
-                ];
-            })
-            ->sortByDesc('count')
-            ->take(3)
-            ->values()
-            ->all();
     }
 
     /**
