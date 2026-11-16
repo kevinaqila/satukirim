@@ -142,3 +142,31 @@ test('xendit service creates invoice successfully', function () {
         ->and($result['id'])->toBe('inv-test-123')
         ->and($result['invoice_url'])->toBe('https://checkout-staging.xendit.co/v2/inv-test-123');
 });
+
+test('xendit service checks invoice status using xendit_invoice_id and skips mock values', function () {
+    Http::fake([
+        'api.xendit.co/v2/invoices/inv-real-456' => Http::response([
+            'id' => 'inv-real-456',
+            'status' => 'PENDING',
+        ], 200),
+        'api.xendit.co/v2/invoices*' => Http::response([], 200),
+    ]);
+
+    $service = new XenditService(apiKey: 'xnd_development_dummy_key');
+
+    $realShipment = new Shipment([
+        'order_number' => 'SK-0001ABC',
+        'xendit_invoice_id' => 'inv-real-456',
+    ]);
+
+    expect($service->checkInvoiceStatus($realShipment))->toBe('pending');
+    Http::assertSent(fn ($request) => $request->url() === 'https://api.xendit.co/v2/invoices/inv-real-456');
+
+    $mockShipment = new Shipment([
+        'order_number' => 'SK-0002DEF',
+        'xendit_invoice_id' => 'mock_invoice_SK-0002DEF',
+    ]);
+
+    expect($service->checkInvoiceStatus($mockShipment))->toBeNull();
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'mock_invoice_SK-0002DEF'));
+});

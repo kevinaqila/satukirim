@@ -254,7 +254,7 @@ class XenditService
                 $invoiceId = $data['id'] ?? null;
 
                 if ($invoiceId) {
-                    $shipment->update(['snap_token' => $invoiceId]);
+                    $shipment->update(['xendit_invoice_id' => $invoiceId]);
                 }
 
                 return [
@@ -328,8 +328,8 @@ class XenditService
         }
 
         try {
-            if (! empty($shipment->snap_token) && ! str_starts_with($shipment->snap_token, 'SNAP_')) {
-                $invoice = $this->getInvoice($shipment->snap_token);
+            if (! empty($shipment->xendit_invoice_id) && ! str_starts_with($shipment->xendit_invoice_id, 'mock_invoice_') && ! str_starts_with($shipment->xendit_invoice_id, 'SNAP_')) {
+                $invoice = $this->getInvoice($shipment->xendit_invoice_id);
                 if ($invoice) {
                     $status = strtoupper($invoice['status'] ?? '');
                     $paymentMethod = $invoice['payment_method'] ?? 'xendit';
