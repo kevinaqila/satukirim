@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\Shipment;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -57,7 +59,7 @@ class FortifyServiceProvider extends ServiceProvider
     }
 
     /**
-     * Remove admin intended redirect URL when a non-super-admin signs in.
+     * Remove disallowed intended redirect URLs (admin, foreign shipment, or foreign store routes) after sign in.
      */
     public function clearDisallowedIntendedUrl(Request $request): void
     {
@@ -71,6 +73,26 @@ class FortifyServiceProvider extends ServiceProvider
 
         if (! $user?->isSuperAdmin() && ($path === '/admin' || str_starts_with($path, '/admin/'))) {
             $request->session()->forget('url.intended');
+
+            return;
+        }
+
+        if (preg_match('#^/shipments/(\d+)(?:/.*)?$#', $path, $matches)) {
+            $shipment = Shipment::find((int) $matches[1]);
+
+            if (! $shipment || (! $user?->isSuperAdmin() && $shipment->user_id !== $user?->id)) {
+                $request->session()->forget('url.intended');
+            }
+
+            return;
+        }
+
+        if (preg_match('#^/stores/(\d+)(?:/.*)?$#', $path, $matches)) {
+            $store = Store::find((int) $matches[1]);
+
+            if (! $store || $store->user_id !== $user?->id) {
+                $request->session()->forget('url.intended');
+            }
         }
     }
 
@@ -95,7 +117,7 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::authenticateUsing(function (Request $request) {
             $user = User::where('email', $request->email)->first();
 
-            if ($user && Hash::check($request->password, $user->password)) {
+            if ($user && filled($user->password) && Hash::check($request->password, $user->password)) {
                 if (! $user->is_active) {
                     throw ValidationException::withMessages([
                         Fortify::username() => ['Akun Anda sedang dinonaktifkan oleh Administrator.'],
@@ -155,12 +177,6 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
-        });
-
-        RateLimiter::for('passkeys', function (Request $request) {
-            return Limit::perMinute(10)->by(
-                ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
-            );
         });
     }
 }
