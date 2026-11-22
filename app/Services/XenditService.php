@@ -6,6 +6,7 @@ use App\Models\Shipment;
 use App\Models\Wallet;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -386,45 +387,54 @@ class XenditService
     }
 
     /**
-     * Mark shipment as paid and assign Biteship waybill.
+     * Mark shipment as paid and assign Biteship waybill under a per-shipment lock.
      */
     public function markShipmentAsPaid(Shipment $shipment, string $paymentType = 'xendit'): void
     {
-        if ($shipment->status === 'paid' || in_array($shipment->status, ['allocated', 'picking_up', 'picked', 'in_transit', 'delivered'], true)) {
-            return;
-        }
+        Cache::lock("shipment:payment:{$shipment->id}", 20)->block(10, function () use ($shipment, $paymentType): void {
+            $freshShipment = Shipment::find($shipment->id);
 
-        $biteship = app(BiteshipService::class);
-        $biteshipResult = $biteship->createOrder($shipment);
+            if (! $freshShipment || $freshShipment->status !== 'pending_payment') {
+                return;
+            }
 
-        $waybill = ! empty($biteshipResult['waybill_number'])
-            ? $biteshipResult['waybill_number']
-            : ($shipment->waybill_number ?: 'STK'.strtoupper($shipment->courier_code).date('ymd').rand(1000, 9999));
+            $biteship = app(BiteshipService::class);
+            $biteshipResult = $biteship->createOrder($freshShipment);
 
-        $biteshipOrderId = $biteshipResult['biteship_order_id'] ?? $shipment->biteship_order_id;
+            $waybill = ! empty($biteshipResult['waybill_number'])
+                ? $biteshipResult['waybill_number']
+                : ($freshShipment->waybill_number ?: 'STK'.strtoupper($freshShipment->courier_code).date('ymd').rand(1000, 9999));
 
-        $history = $shipment->tracking_history ?? [];
-        $history[] = [
-            'status' => 'paid',
-            'note' => 'Pembayaran ongkir berhasil diverifikasi via '.$paymentType,
-            'timestamp' => now()->toIso8601String(),
-        ];
-        $history[] = [
-            'status' => 'waiting_pickup',
-            'note' => 'Permintaan penjemputan paket telah dijadwalkan ke kurir '.$shipment->courier_service_name,
-            'timestamp' => now()->addMinutes(2)->toIso8601String(),
-        ];
+            $biteshipOrderId = $biteshipResult['biteship_order_id'] ?? $freshShipment->biteship_order_id;
 
-        $shipment->update([
-            'status' => 'paid',
-            'payment_method' => $paymentType,
-            'paid_at' => now(),
-            'biteship_order_id' => $biteshipOrderId,
-            'waybill_number' => $waybill,
-            'tracking_history' => $history,
-        ]);
+            $history = $freshShipment->tracking_history ?? [];
+            $history[] = [
+                'status' => 'paid',
+                'note' => 'Pembayaran ongkir berhasil diverifikasi via '.$paymentType,
+                'timestamp' => now()->toIso8601String(),
+            ];
+            $history[] = [
+                'status' => 'waiting_pickup',
+                'note' => 'Permintaan penjemputan paket telah dijadwalkan ke kurir '.$freshShipment->courier_service_name,
+                'timestamp' => now()->addMinutes(2)->toIso8601String(),
+            ];
 
-        Wallet::syncPlatformBalances();
+            $freshShipment->update([
+                'status' => 'paid',
+                'payment_method' => $paymentType,
+                'paid_at' => now(),
+                'biteship_order_id' => $biteshipOrderId,
+                'waybill_number' => $waybill,
+                'tracking_history' => $history,
+            ]);
+
+            $freshShipment->refresh();
+            $shipment->setRawAttributes($freshShipment->getAttributes());
+
+            Wallet::syncPlatformBalances();
+
+            app(WhatsAppService::class)->notifyShipmentReady($freshShipment);
+        });
     }
 
     /**

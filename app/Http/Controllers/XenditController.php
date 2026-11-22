@@ -39,7 +39,6 @@ class XenditController extends Controller
             return response()->json(['message' => 'Missing external_id parameter'], 400);
         }
 
-        // 1. Check if external_id belongs to a Withdrawal (Disbursement)
         $withdrawal = Withdrawal::where('reference_number', $externalId)->first();
         if ($withdrawal) {
             if (in_array($status, ['COMPLETED', 'SUCCESS', 'SUCCESSFUL'], true)) {
@@ -61,7 +60,6 @@ class XenditController extends Controller
             ]);
         }
 
-        // 2. Check if external_id belongs to a Shipment (Invoice)
         $shipment = Shipment::where('order_number', $externalId)->first();
         if ($shipment) {
             if (in_array($status, ['PAID', 'SETTLED'], true)) {
