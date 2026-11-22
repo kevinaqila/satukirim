@@ -76,7 +76,7 @@ class DashboardController extends Controller
     /**
      * Hitung metrik ringkasan status pengiriman.
      *
-     * @return array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, total_volume: int}
+     * @return array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, failed: int, cancelled: int, returned: int, total_volume: int}
      */
     private function calculateMetrics(Builder|HasMany $shipmentQuery): array
     {
@@ -85,6 +85,9 @@ class DashboardController extends Controller
         $waitingPickupCount = (clone $shipmentQuery)->whereIn('status', ['paid', 'waiting_pickup', 'allocated', 'picking_up'])->count();
         $inTransitCount = (clone $shipmentQuery)->where('status', 'in_transit')->count();
         $deliveredCount = (clone $shipmentQuery)->where('status', 'delivered')->count();
+        $failedCount = (clone $shipmentQuery)->whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned', 'disposed'])->count();
+        $cancelledCount = (clone $shipmentQuery)->whereIn('status', ['cancelled', 'rejected', 'courier_not_found'])->count();
+        $returnedCount = (clone $shipmentQuery)->where('status', 'returned')->count();
         $totalVolume = (int) (clone $shipmentQuery)->whereNotIn('status', ['pending_payment', 'cancelled'])->sum('total_amount');
 
         return [
@@ -93,6 +96,9 @@ class DashboardController extends Controller
             'waiting_pickup' => $waitingPickupCount,
             'in_transit' => $inTransitCount,
             'delivered' => $deliveredCount,
+            'failed' => $failedCount,
+            'cancelled' => $cancelledCount,
+            'returned' => $returnedCount,
             'total_volume' => $totalVolume,
         ];
     }
@@ -100,7 +106,7 @@ class DashboardController extends Controller
     /**
      * Ambil data analitik platform khusus Super Admin.
      *
-     * @param  array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, total_volume: int}  $metrics
+     * @param  array{total: int, unpaid: int, waiting_pickup: int, in_transit: int, delivered: int, failed: int, cancelled: int, returned: int, total_volume: int}  $metrics
      * @return array{recentShipments: Collection, storesCount: int, defaultStore: null, walletStats: null, platformStats: array, recentAuditLogs: array, umkmList: array}
      */
     private function getSuperAdminData(User $user, array $metrics): array
@@ -117,7 +123,7 @@ class DashboardController extends Controller
 
         $storesCount = Store::count();
         $paidShipmentsCount = Shipment::whereNotIn('status', ['pending_payment', 'cancelled'])->count();
-        $cancelledShipmentsCount = Shipment::whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned'])->count();
+        $cancelledShipmentsCount = Shipment::whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned', 'disposed'])->count();
         $adminWallet = $user->getOrCreateWallet()->syncBalances();
         $platformRevenue = (int) $adminWallet->available_balance;
 

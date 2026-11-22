@@ -19,7 +19,6 @@ import type {
     StorePerformanceItem,
     TopDestinationItem,
     UmkmListItem,
-    WalletStats,
 } from '@/types/dashboard';
 
 defineOptions({
@@ -45,7 +44,6 @@ withDefaults(
         storePerformance?: StorePerformanceItem[];
         liveTrackingFeed?: LiveTrackingFeedItem[];
         recentShipments?: DashboardShipmentItem[];
-        walletStats?: WalletStats | null;
         defaultStore?: DefaultStoreInfo | null;
         storesCount?: number;
         platformStats?: PlatformStats | null;
@@ -54,7 +52,7 @@ withDefaults(
     }>(),
     {
         isSuperAdmin: false,
-        metrics: () => ({ total: 0, unpaid: 0, waiting_pickup: 0, in_transit: 0, delivered: 0, total_volume: 0 }),
+        metrics: () => ({ total: 0, unpaid: 0, waiting_pickup: 0, in_transit: 0, delivered: 0, failed: 0, cancelled: 0, returned: 0, total_volume: 0 }),
         sevenDayTrend: () => [],
         weeklyGrowth: 0,
         topDestinations: () => [],
@@ -63,7 +61,6 @@ withDefaults(
         storePerformance: () => [],
         liveTrackingFeed: () => [],
         recentShipments: () => [],
-        walletStats: null,
         defaultStore: null,
         storesCount: 0,
         platformStats: null,
@@ -129,7 +126,6 @@ const currentDateShort = computed(() => {
         <UmkmDashboard
             v-else
             :metrics="metrics"
-            :wallet-stats="walletStats"
             :default-store="defaultStore"
             :stores-count="storesCount"
             :seven-day-trend="sevenDayTrend"

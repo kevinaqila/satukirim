@@ -31,6 +31,9 @@ export interface DashboardMetrics {
     waiting_pickup: number;
     in_transit: number;
     delivered: number;
+    failed?: number;
+    cancelled?: number;
+    returned?: number;
     total_volume?: number;
 }
 
@@ -95,12 +98,6 @@ export interface LiveTrackingFeedItem {
     courier_service_name: string;
     note: string;
     time: string;
-}
-
-export interface WalletStats {
-    available_balance: number;
-    pending_balance: number;
-    total_withdrawn: number;
 }
 
 export interface DefaultStoreInfo {

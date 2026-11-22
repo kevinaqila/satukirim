@@ -5,9 +5,9 @@ import {
     ArrowRight,
     ChevronRight,
     Package,
-    ReceiptText,
+    PackageCheck,
+    PackageX,
     Truck,
-    Wallet,
 } from '@lucide/vue';
 import { computed } from 'vue';
 import QuickRateCheckCard from '@/components/dashboard/QuickRateCheckCard.vue';
@@ -30,13 +30,11 @@ import {
     type SevenDayTrendItem,
     type StorePerformanceItem,
     type TopDestinationItem,
-    type WalletStats,
 } from '@/types/dashboard';
 
 const props = withDefaults(
     defineProps<{
         metrics: DashboardMetrics;
-        walletStats?: WalletStats | null;
         defaultStore?: DefaultStoreInfo | null;
         storesCount?: number;
         sevenDayTrend?: SevenDayTrendItem[];
@@ -49,7 +47,6 @@ const props = withDefaults(
         courierPerformance?: CourierPerformanceItem[];
     }>(),
     {
-        walletStats: null,
         defaultStore: null,
         storesCount: 0,
         sevenDayTrend: () => [],
@@ -150,7 +147,7 @@ const overallDeliveryRate = computed(() => {
                         {{ metrics.total ?? ((metrics.unpaid || 0) + (metrics.waiting_pickup || 0) + (metrics.in_transit || 0) + (metrics.delivered || 0)) }}
                     </div>
                     <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
-                        {{ metrics.delivered || 0 }} sampai - {{ metrics.unpaid || 0 }} belum bayar
+                        {{ metrics.unpaid || 0 }} menunggu pembayaran
                     </p>
                 </div>
             </div>
@@ -172,39 +169,42 @@ const overallDeliveryRate = computed(() => {
                 </div>
             </div>
 
-            <div class="p-3.5 sm:p-4 rounded-xl bg-white border border-stone-200/80 shadow-xs flex flex-col justify-between">
-                <div class="flex items-center justify-between text-stone-600">
-                    <span class="text-xs sm:text-sm font-semibold text-stone-700">Total Ongkir</span>
-                    <div class="size-8 rounded-lg bg-rose-50 flex items-center justify-center text-[#853953] shrink-0">
-                        <ReceiptText class="size-4.5" />
-                    </div>
-                </div>
-                <div class="mt-2 sm:mt-2.5">
-                    <div class="text-xl sm:text-2xl font-bold text-[#2C2C2C] tabular-nums truncate">
-                        Rp {{ formatRupiah(metrics.total_volume) }}
-                    </div>
-                    <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
-                        {{ overallDeliveryRate }}% selesai antar
-                    </p>
-                </div>
-            </div>
-
             <Link
-                href="/wallet"
+                href="/shipments?status=delivered"
                 class="p-3.5 sm:p-4 rounded-xl bg-white border border-stone-200/80 hover:border-[#853953]/40 shadow-xs flex flex-col justify-between transition-colors group"
             >
                 <div class="flex items-center justify-between text-stone-600">
-                    <span class="text-xs sm:text-sm font-semibold text-stone-700 group-hover:text-[#853953] transition-colors">Saldo Dompet COD</span>
+                    <span class="text-xs sm:text-sm font-semibold text-stone-700 group-hover:text-[#853953] transition-colors">Paket Selesai</span>
                     <div class="size-8 rounded-lg bg-rose-50 flex items-center justify-center text-[#853953] shrink-0">
-                        <Wallet class="size-4.5" />
+                        <PackageCheck class="size-4.5" />
                     </div>
                 </div>
                 <div class="mt-2 sm:mt-2.5">
                     <div class="text-xl sm:text-2xl font-bold text-[#2C2C2C] tabular-nums truncate">
-                        Rp {{ formatRupiah(walletStats?.available_balance || 0) }}
+                        {{ metrics.delivered || 0 }}
                     </div>
                     <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
-                        Tertahan: Rp {{ formatRupiah(walletStats?.pending_balance || 0) }}
+                        {{ overallDeliveryRate }}% tingkat keberhasilan antar
+                    </p>
+                </div>
+            </Link>
+
+            <Link
+                href="/shipments?status=cancelled"
+                class="p-3.5 sm:p-4 rounded-xl bg-white border border-stone-200/80 hover:border-[#853953]/40 shadow-xs flex flex-col justify-between transition-colors group"
+            >
+                <div class="flex items-center justify-between text-stone-600">
+                    <span class="text-xs sm:text-sm font-semibold text-stone-700 group-hover:text-[#853953] transition-colors">Paket Gagal / Retur</span>
+                    <div class="size-8 rounded-lg bg-rose-50 flex items-center justify-center text-[#853953] shrink-0">
+                        <PackageX class="size-4.5" />
+                    </div>
+                </div>
+                <div class="mt-2 sm:mt-2.5">
+                    <div class="text-xl sm:text-2xl font-bold text-[#2C2C2C] tabular-nums truncate">
+                        {{ metrics.failed ?? ((metrics.cancelled || 0) + (metrics.returned || 0)) }}
+                    </div>
+                    <p class="text-xs text-stone-500 font-medium mt-0.5 truncate">
+                        {{ metrics.returned || 0 }} retur - {{ metrics.cancelled || 0 }} dibatalkan
                     </p>
                 </div>
             </Link>
@@ -262,6 +262,11 @@ const overallDeliveryRate = computed(() => {
                                     :style="{ width: `${tier.count > 0 ? Math.max(4, tier.percentage) : 0}%` }"
                                 />
                             </div>
+                        </div>
+
+                        <div class="px-2.5 py-2 rounded-lg bg-stone-50 border border-stone-200/60 flex items-center justify-between gap-2 text-xs sm:text-sm">
+                            <span class="font-semibold text-stone-600">Total Ongkir Keseluruhan</span>
+                            <span class="font-bold text-[#853953] tabular-nums">Rp {{ formatRupiah(metrics.total_volume) }}</span>
                         </div>
                     </div>
 
@@ -386,13 +391,6 @@ const overallDeliveryRate = computed(() => {
                         <h2 class="text-base font-bold text-[#2C2C2C] tracking-tight">
                             Pergerakan Paket Terkini
                         </h2>
-                        <Link
-                            href="/shipments"
-                            class="text-xs sm:text-sm font-semibold text-[#853953] hover:underline flex items-center gap-1 shrink-0"
-                        >
-                            <span>Lihat Semua</span>
-                            <ChevronRight class="size-4" />
-                        </Link>
                     </div>
 
                     <div v-if="liveTrackingFeed && liveTrackingFeed.length > 0" class="mt-2.5 divide-y divide-stone-100">
@@ -435,20 +433,14 @@ const overallDeliveryRate = computed(() => {
                 <h2 class="text-base font-bold text-[#2C2C2C] tracking-tight">
                     Performa Ekspedisi Digunakan
                 </h2>
-                <Link
-                    href="/shipments"
-                    class="text-xs sm:text-sm font-semibold text-[#853953] hover:underline flex items-center gap-1 shrink-0"
-                >
-                    <span>Pengiriman</span>
-                    <ChevronRight class="size-4" />
-                </Link>
             </div>
 
             <div v-if="courierPerformance && courierPerformance.length > 0" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                <div
+                <Link
                     v-for="courier in courierPerformance"
                     :key="courier.code"
-                    class="p-2.5 rounded-lg border border-stone-200/70 bg-stone-50/50 flex items-center justify-between gap-2.5"
+                    :href="`/shipments?courier=${courier.code}`"
+                    class="p-2.5 rounded-lg border border-stone-200/70 bg-stone-50/50 hover:border-[#853953]/40 hover:bg-stone-50 flex items-center justify-between gap-2.5 transition-colors group"
                 >
                     <div class="flex items-center gap-2.5 min-w-0">
                         <div class="h-7 w-11 bg-white rounded border border-stone-200/80 p-0.5 flex items-center justify-center shrink-0">
@@ -463,7 +455,7 @@ const overallDeliveryRate = computed(() => {
                             </span>
                         </div>
                         <div class="min-w-0">
-                            <div class="text-sm font-bold text-[#2C2C2C] truncate">
+                            <div class="text-sm font-bold text-[#2C2C2C] group-hover:text-[#853953] transition-colors truncate">
                                 {{ courier.name }}
                             </div>
                             <div class="text-xs text-stone-500 truncate tabular-nums">
@@ -480,7 +472,7 @@ const overallDeliveryRate = computed(() => {
                             {{ courier.delivered_count }} terkirim
                         </div>
                     </div>
-                </div>
+                </Link>
             </div>
             <div v-else class="py-6 text-center text-sm text-stone-500">
                 Belum ada riwayat ekspedisi. Buat pengiriman pertama untuk melihat ringkasan performa kurir.
