@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -11,7 +12,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-import PasskeyVerify from '@/components/PasskeyVerify.vue';
 
 defineOptions({
     layout: {
@@ -25,6 +25,12 @@ defineProps<{
     status?: string;
     canResetPassword: boolean;
 }>();
+
+const page = usePage();
+const googleAuthError = computed(() => {
+    const pageErrors = page.props.errors as Record<string, string> | undefined;
+    return pageErrors?.google;
+});
 </script>
 
 <template>
@@ -36,8 +42,6 @@ defineProps<{
     >
         {{ status }}
     </div>
-
-    <PasskeyVerify />
 
     <Form
         v-bind="store.form()"
@@ -79,7 +83,7 @@ defineProps<{
                     required
                     :tabindex="2"
                     autocomplete="current-password"
-                    placeholder="••••••••"
+                    placeholder="Masukkan kata sandi"
                 />
                 <InputError :message="errors.password" />
             </div>
@@ -109,8 +113,8 @@ defineProps<{
             <span class="absolute bg-white px-3 text-xs uppercase tracking-wider text-stone-400 font-medium">atau</span>
         </div>
 
-        <button
-            type="button"
+        <a
+            href="/auth/google/redirect"
             :tabindex="5"
             class="flex w-full items-center justify-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#2C2C2C] shadow-xs transition-all hover:bg-stone-50 hover:border-stone-300 active:scale-[0.99] focus:outline-hidden focus:ring-2 focus:ring-[#853953]/20 cursor-pointer"
         >
@@ -133,7 +137,8 @@ defineProps<{
                 />
             </svg>
             <span>Masuk dengan Google</span>
-        </button>
+        </a>
+        <InputError :message="googleAuthError" class="text-center" />
 
         <div class="pt-2 text-center text-sm text-[#2C2C2C]/70">
             Belum punya akun?

@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('google_id')->nullable()->unique();
+            $table->string('avatar')->nullable();
             $table->string('phone')->nullable();
             $table->string('bank_code', 20)->nullable();
             $table->string('bank_account_number', 40)->nullable();
@@ -22,7 +24,7 @@ return new class extends Migration
             $table->string('role')->default('umkm');
             $table->boolean('is_active')->default(true);
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('password')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

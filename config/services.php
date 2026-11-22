@@ -45,4 +45,17 @@ return [
         'callback_token' => env('XENDIT_CALLBACK_TOKEN'),
         'base_url' => env('XENDIT_BASE_URL', 'https://api.xendit.co'),
     ],
+
+    'whatsapp' => [
+        'enabled' => env('WHATSAPP_ENABLED', env('WAHA_ENABLED')),
+        'base_url' => env('WHATSAPP_BASE_URL', env('WAHA_BASE_URL', 'http://localhost:3000')),
+        'api_key' => env('WHATSAPP_API_KEY', env('WAHA_API_KEY')),
+        'session' => env('WHATSAPP_SESSION', env('WAHA_SESSION', 'default')),
+    ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
 ];

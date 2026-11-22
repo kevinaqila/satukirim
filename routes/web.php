@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BiteshipController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PublicShippingController;
@@ -9,9 +10,15 @@ use App\Http\Controllers\StoreController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\XenditController;
 use App\Http\Middleware\EnsureSuperAdmin;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Landing')->name('home');
+
+Route::middleware('guest')->prefix('auth/google')->name('auth.google.')->group(function () {
+    Route::get('/redirect', [GoogleAuthController::class, 'redirect'])->name('redirect');
+    Route::get('/callback', [GoogleAuthController::class, 'callback'])->name('callback');
+});
 
 Route::prefix('api/public')->middleware('throttle:30,1')->group(function () {
     Route::get('/areas', [PublicShippingController::class, 'searchAreas'])->name('public.areas');
@@ -43,7 +50,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/shipments/{shipment}', [ShipmentController::class, 'show'])->name('shipments.show');
     Route::delete('/shipments/{shipment}', [ShipmentController::class, 'destroy'])->name('shipments.destroy');
     Route::post('/shipments/{shipment}/pay', [ShipmentController::class, 'payWithXendit'])->name('shipments.pay');
-    Route::post('/shipments/{shipment}/check-payment', [ShipmentController::class, 'checkPayment'])->name('shipments.check-payment');
 
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
     Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])->name('wallet.withdraw');
@@ -59,3 +65,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 require __DIR__.'/settings.php';
+
+Route::fallback(function (Request $request) {
+    if ($request->is('api/*') || $request->expectsJson()) {
+        return response()->json(['message' => 'Not found.'], 404);
+    }
+
+    abort(404);
+});
