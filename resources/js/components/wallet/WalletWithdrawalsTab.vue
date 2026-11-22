@@ -174,7 +174,7 @@ const formatWithdrawalDestination = (notes?: string | null): string => {
                     class="p-3.5 space-y-1.5"
                 >
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-bold font-mono text-[#853953]">
+                        <span class="text-sm font-bold text-[#853953] tabular-nums">
                             {{ wd.reference_number }}
                         </span>
                         <span class="text-xs font-bold text-[#853953]">
@@ -217,7 +217,7 @@ const formatWithdrawalDestination = (notes?: string | null): string => {
                 </TableHeader>
                 <TableBody>
                     <TableRow v-for="wd in withdrawals.data" :key="wd.id">
-                        <TableCell class="pl-4 font-mono text-sm font-bold text-[#853953] whitespace-nowrap">
+                        <TableCell class="pl-4 text-sm font-bold text-[#853953] tabular-nums whitespace-nowrap">
                             {{ wd.reference_number }}
                         </TableCell>
                         <TableCell class="text-xs text-stone-500 whitespace-nowrap">

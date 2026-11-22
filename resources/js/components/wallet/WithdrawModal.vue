@@ -153,7 +153,7 @@ const submitWithdrawal = () => {
                                     type="text"
                                     inputmode="numeric"
                                     placeholder="1234567890"
-                                    class="h-10 text-xs sm:text-sm bg-white border-stone-200 font-mono"
+                                    class="h-10 text-xs sm:text-sm bg-white border-stone-200 tabular-nums"
                                     required
                                 />
                                 <InputError :message="withdrawForm.errors.account_number" />

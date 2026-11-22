@@ -103,7 +103,7 @@ const submitBank = () => {
                         type="text"
                         inputmode="numeric"
                         placeholder="Masukkan angka nomor rekening"
-                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 font-mono"
+                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 tabular-nums"
                         required
                     />
                     <InputError :message="bankForm.errors.bank_account_number" />

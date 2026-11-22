@@ -239,7 +239,7 @@ const showWithdrawModal = ref(false);
                         <div class="text-xs sm:text-sm font-bold text-[#2C2C2C] truncate">
                             {{ savedBankLabel }}
                         </div>
-                        <div class="text-xs font-mono font-semibold text-[#853953] tabular-nums">
+                        <div class="text-xs font-semibold text-[#853953] tabular-nums">
                             {{ authUser?.bank_account_number }}
                         </div>
                         <div class="text-xs text-stone-500 truncate">
@@ -263,12 +263,12 @@ const showWithdrawModal = ref(false);
 
             <div class="lg:col-span-8 w-full min-w-0">
                 <div class="rounded-xl border border-stone-200/80 bg-white shadow-xs overflow-hidden">
-                    <div class="flex flex-wrap items-center justify-between gap-2 px-3.5 sm:px-4 border-b border-stone-200 bg-stone-50/60">
-                        <div class="flex items-center gap-1 overflow-x-auto -mb-px">
+                    <div class="flex flex-wrap items-center justify-between gap-2 px-0 sm:px-4 border-b border-stone-200 bg-stone-50/60">
+                        <div class="grid grid-cols-2 w-full sm:w-auto sm:flex items-center sm:gap-1 -mb-px">
                             <button
                                 type="button"
                                 @click="switchTab('cod')"
-                                class="px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+                                class="px-2 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5"
                                 :class="
                                     activeTab === 'cod'
                                         ? 'border-[#853953] text-[#853953] bg-white/80'
@@ -281,7 +281,7 @@ const showWithdrawModal = ref(false);
                             <button
                                 type="button"
                                 @click="switchTab('withdrawals')"
-                                class="px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+                                class="px-2 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5"
                                 :class="
                                     activeTab === 'withdrawals'
                                         ? 'border-[#853953] text-[#853953] bg-white/80'
