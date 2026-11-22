@@ -19,14 +19,11 @@ test('auditable trait does not pollute attributes with pendingAuditUpdate on upd
         'status' => 'pending',
     ]);
 
-    // Simulate updating event
     $dirty = ['status' => 'paid'];
     $model->status = 'paid';
 
-    // Check that pendingAuditUpdate is never in attributes
     expect($model->getAttributes())->not->toHaveKey('pendingAuditUpdate');
 
-    // Simulate another change
     $model->status = 'confirmed';
     expect($model->getAttributes())->not->toHaveKey('pendingAuditUpdate');
 });
