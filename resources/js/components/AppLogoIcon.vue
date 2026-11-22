@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue';
+import { useId, type HTMLAttributes } from 'vue';
 
 defineOptions({
     inheritAttrs: false,
@@ -14,6 +14,10 @@ type Props = {
 const props = withDefaults(defineProps<Props>(), {
     variant: 'color',
 });
+
+const uid = useId();
+const petalId = `satukirim-petal-${uid}`;
+const clipId = `satukirim-clip-${uid}`;
 </script>
 
 <template>
@@ -26,35 +30,35 @@ const props = withDefaults(defineProps<Props>(), {
     >
         <defs>
             <path
-                id="satukirim-petal"
+                :id="petalId"
                 d="M 33 0 C 15 0, 0 15, 0 36.5 V 60 C 0 68, 5 73, 13 73 H 42 C 57 73, 67 56, 67 36.5 C 67 16, 53 0, 33 0 Z"
             />
-            <clipPath id="satukirim-clip">
-                <use href="#satukirim-petal" />
+            <clipPath :id="clipId">
+                <use :href="`#${petalId}`" />
             </clipPath>
         </defs>
 
         <template v-if="props.variant === 'color'">
-            <use href="#satukirim-petal" fill="#A23F5C" />
-            <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#592244" />
-            <g clip-path="url(#satukirim-clip)">
-                <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#79304E" />
+            <use :href="`#${petalId}`" fill="#A23F5C" />
+            <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="#592244" />
+            <g :clip-path="`url(#${clipId})`">
+                <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="#79304E" />
             </g>
         </template>
 
         <template v-else-if="props.variant === 'monochrome'">
-            <use href="#satukirim-petal" fill="currentColor" fill-opacity="0.85" />
-            <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="currentColor" fill-opacity="0.95" />
-            <g clip-path="url(#satukirim-clip)">
-                <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="currentColor" fill-opacity="0.5" />
+            <use :href="`#${petalId}`" fill="currentColor" fill-opacity="0.85" />
+            <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="currentColor" fill-opacity="0.95" />
+            <g :clip-path="`url(#${clipId})`">
+                <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="currentColor" fill-opacity="0.5" />
             </g>
         </template>
 
         <template v-else>
-            <use href="#satukirim-petal" fill="#FFFFFF" fill-opacity="0.92" />
-            <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#FFFFFF" fill-opacity="0.65" />
-            <g clip-path="url(#satukirim-clip)">
-                <use href="#satukirim-petal" transform="rotate(180 50 36.5)" fill="#FFFFFF" fill-opacity="1" />
+            <use :href="`#${petalId}`" fill="#FFFFFF" fill-opacity="0.92" />
+            <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="#FFFFFF" fill-opacity="0.65" />
+            <g :clip-path="`url(#${clipId})`">
+                <use :href="`#${petalId}`" transform="rotate(180 50 36.5)" fill="#FFFFFF" fill-opacity="1" />
             </g>
         </template>
     </svg>
