@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\ExceptionResponse;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -34,6 +36,20 @@ class AppServiceProvider extends ServiceProvider
             'Store' => Store::class,
             'User' => User::class,
         ]);
+
+        Inertia::handleExceptionsUsing(function (ExceptionResponse $response) {
+            if ($response->request->is('api/*') || $response->request->expectsJson()) {
+                return null;
+            }
+
+            if (in_array($response->statusCode(), [403, 404], true)) {
+                return $response->render('ErrorPage', [
+                    'status' => $response->statusCode(),
+                ])->withSharedData();
+            }
+
+            return null;
+        });
     }
 
     /**
