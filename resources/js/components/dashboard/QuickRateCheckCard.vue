@@ -4,6 +4,7 @@ import { Clock, Loader2, Search } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getCsrfHeaders } from '@/lib/csrf';
 import { getCourierLogo } from '@/lib/status';
 import { formatRupiah, type DefaultStoreInfo } from '@/types/dashboard';
 
@@ -49,10 +50,37 @@ const destSuggestions = ref<Array<{ id: string; name: string }>>([]);
 const showDestDropdown = ref(false);
 
 const packageWeight = ref('1');
+const packageLength = ref('');
+const packageWidth = ref('');
+const packageHeight = ref('');
 const isCalculatingRates = ref(false);
 const rateResults = ref<RateResultItem[]>([]);
 const rateError = ref('');
 const showRateResultsModal = ref(false);
+
+const parsedDimensions = computed(() => {
+    const raw = [packageLength.value.trim(), packageWidth.value.trim(), packageHeight.value.trim()];
+    const filled = raw.filter((v) => v !== '');
+    if (filled.length === 0) {
+        return { state: 'empty' as const, length: null, width: null, height: null };
+    }
+    const nums = raw.map((v) => Math.round(Number(v)));
+    if (filled.length < 3 || nums.some((n) => !Number.isFinite(n) || n < 1 || n > 500)) {
+        return { state: 'invalid' as const, length: null, width: null, height: null };
+    }
+    return { state: 'valid' as const, length: nums[0], width: nums[1], height: nums[2] };
+});
+
+const activeDimensionsLabel = computed(() => {
+    if (parsedDimensions.value.state !== 'valid') return '';
+    return `${parsedDimensions.value.length}×${parsedDimensions.value.width}×${parsedDimensions.value.height} cm`;
+});
+
+const volumetricEstimateKg = computed(() => {
+    if (parsedDimensions.value.state !== 'valid') return '';
+    const vol = (parsedDimensions.value.length! * parsedDimensions.value.width! * parsedDimensions.value.height!) / 6000;
+    return vol.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+});
 
 let originSearchTimer: ReturnType<typeof setTimeout> | null = null;
 const onOriginInputChange = () => {
@@ -145,24 +173,41 @@ const handleQuickRateCheck = async () => {
         return;
     }
 
+    if (parsedDimensions.value.state === 'invalid') {
+        rateError.value = 'Isi lengkap panjang, lebar, dan tinggi (1–500 cm) atau kosongkan ketiganya.';
+        return;
+    }
+
     isCalculatingRates.value = true;
     try {
-        const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+        const payload: Record<string, string | number> = {
+            origin_area_id: originAreaId.value,
+            destination_area_id: destinationAreaId.value,
+            weight: parseFloat(packageWeight.value) || 1,
+        };
+        if (parsedDimensions.value.state === 'valid') {
+            payload.length = parsedDimensions.value.length!;
+            payload.width = parsedDimensions.value.width!;
+            payload.height = parsedDimensions.value.height!;
+        }
+
         const res = await fetch('/api/public/rates', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
+                ...getCsrfHeaders(),
+                'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({
-                origin_area_id: originAreaId.value,
-                destination_area_id: destinationAreaId.value,
-                weight: parseFloat(packageWeight.value) || 1,
-            }),
+            body: JSON.stringify(payload),
         });
 
         const data = await res.json();
+        if (res.status === 422) {
+            const firstError = data.errors ? Object.values(data.errors).flat()[0] : null;
+            rateError.value = (typeof firstError === 'string' && firstError) || data.message || 'Validasi formulir gagal.';
+            return;
+        }
         if (data.success && Array.isArray(data.pricing) && data.pricing.length > 0) {
             rateResults.value = [...data.pricing]
                 .sort((a, b) => Number(a.price || 0) - Number(b.price || 0))
@@ -185,6 +230,11 @@ const buildCreateShipmentUrl = (rate?: RateResultItem) => {
     if (destinationQuery.value) params.set('destination_area_name', destinationQuery.value);
     const grams = Math.max(100, Math.round((parseFloat(packageWeight.value) || 1) * 1000));
     params.set('weight', String(grams));
+    if (parsedDimensions.value.state === 'valid') {
+        params.set('length', String(parsedDimensions.value.length));
+        params.set('width', String(parsedDimensions.value.width));
+        params.set('height', String(parsedDimensions.value.height));
+    }
     if (rate?.courier_code) params.set('courier_code', String(rate.courier_code));
     if (rate?.courier_service_code) params.set('courier_service_code', String(rate.courier_service_code));
     return `/shipments/create?${params.toString()}`;
@@ -310,6 +360,49 @@ onUnmounted(() => {
                     />
                 </div>
 
+                <div>
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <label class="block text-xs sm:text-sm font-semibold text-stone-700">
+                            Dimensi P × L × T (cm) <span class="text-xs font-normal text-stone-400">(Opsional)</span>
+                        </label>
+                        <span v-if="volumetricEstimateKg" class="text-xs font-semibold text-[#853953] tabular-nums">
+                            Volumetrik: {{ volumetricEstimateKg }} kg
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <Input
+                            v-model="packageLength"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="P (cm)"
+                            aria-label="Panjang (cm)"
+                            class="text-sm h-9 rounded-lg tabular-nums"
+                        />
+                        <Input
+                            v-model="packageWidth"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="L (cm)"
+                            aria-label="Lebar (cm)"
+                            class="text-sm h-9 rounded-lg tabular-nums"
+                        />
+                        <Input
+                            v-model="packageHeight"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="T (cm)"
+                            aria-label="Tinggi (cm)"
+                            class="text-sm h-9 rounded-lg tabular-nums"
+                        />
+                    </div>
+                </div>
+
                 <p v-if="rateError" class="text-xs text-red-600 font-medium">
                     {{ rateError }}
                 </p>
@@ -339,8 +432,8 @@ onUnmounted(() => {
                             <h3 class="text-base font-bold text-[#2C2C2C] tracking-tight">
                                 Perbandingan Tarif Ekspedisi
                             </h3>
-                            <p class="text-xs text-stone-500 mt-0.5">
-                                {{ originQuery || defaultStoreFormattedAddress || 'Asal' }} → {{ destinationQuery || 'Tujuan' }} ({{ packageWeight }} kg)
+                            <p class="text-xs text-stone-500 mt-0.5 tabular-nums">
+                                {{ originQuery || defaultStoreFormattedAddress || 'Asal' }} → {{ destinationQuery || 'Tujuan' }} ({{ packageWeight }} kg{{ activeDimensionsLabel ? `, ${activeDimensionsLabel}` : '' }})
                             </p>
                         </div>
                         <button
