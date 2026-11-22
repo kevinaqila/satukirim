@@ -77,7 +77,7 @@ export const testimonials = [
         name: 'Rani Pratiwi',
         role: 'Owner Rania Hijab Store, Bandung',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        quote: 'Dulu tiap sore habis waktu berjam-jam cuma buat salin nomor resi ke WhatsApp pembeli satu-satu. Pakai SatuKirim tinggal klik tombol WA, pembeli langsung bisa lacak posisi paketnya sendiri.',
+        quote: 'Dulu tiap sore habis waktu berjam-jam cuma buat salin nomor resi ke WhatsApp pembeli satu-satu. Pakai SatuKirim tinggal klik tombol WA, pembeli langsung bisa cek riwayat pengirimannya sendiri.',
         courierPref: 'SiCepat & J&T',
         rating: 5,
     },
@@ -106,11 +106,11 @@ export const audiences = [
 ];
 
 export const faqs = [
-    { q: 'Apakah SatuKirim sebuah marketplace?', a: 'Bukan. SatuKirim adalah aggregator logistik bagi toko mandiri untuk cek ongkir, terbit resi, pesan kurir jemput, dan lacak paket.' },
+    { q: 'Apakah SatuKirim sebuah marketplace?', a: 'Bukan. SatuKirim adalah aggregator logistik bagi toko mandiri untuk cek ongkir, terbit resi, pesan kurir jemput, dan pantau riwayat pengiriman.' },
     { q: 'Berapa biaya penggunaan SatuKirim?', a: 'Gratis tanpa langganan bulanan atau komisi produk. Hanya dikenakan biaya layanan flat Rp 1.000 per pengiriman berhasil.' },
     { q: 'Bagaimana cara bayar ongkos kirim?', a: 'Bisa bayar Non-COD instan lewat QRIS & Virtual Account via Xendit, atau pilih COD di mana dana masuk ke Dompet Saya setelah paket sampai.' },
     { q: 'Bagaimana cara mencairkan saldo COD?', a: 'Setelah paket COD berstatus delivered, dana masuk ke Saldo Siap Tarik dan bisa langsung dicairkan ke rekening bank Anda.' },
-    { q: 'Apakah pembeli wajib daftar akun untuk lacak paket?', a: 'Tidak perlu. Pembeli cukup masukkan nomor resi dan kurir pada tab Lacak Status di halaman utama SatuKirim.' },
+    { q: 'Apakah pembeli wajib daftar akun untuk cek riwayat pengiriman?', a: 'Tidak perlu. Pembeli cukup masukkan nomor resi dan kurir pada tab Riwayat Pengiriman di halaman utama SatuKirim.' },
     { q: 'Apakah kurir benar-benar jemput ke toko?', a: 'Ya. Setelah order dibuat, jadwal pickup otomatis diteruskan ke kurir pilihan Anda tanpa syarat minimal jumlah paket.' },
     { q: 'Apakah bisa dipasang di HP tanpa Play Store?', a: 'Bisa. SatuKirim mendukung PWA—buka lewat browser HP lalu pilih "Tambahkan ke Layar Utama".' },
 ];

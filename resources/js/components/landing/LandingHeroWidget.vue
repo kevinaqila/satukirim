@@ -2,6 +2,8 @@
 import {
     AlertCircle,
     Box,
+    Check,
+    ChevronDown,
     Clock,
     Loader2,
     MapPin,
@@ -10,8 +12,9 @@ import {
     Truck,
     Wallet,
 } from '@lucide/vue';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { quickRouteMap, quickRoutes } from '@/data/landing';
+import { formatTrackingNote, formatWeight, getCourierLogo, getShipmentStatus } from '@/lib/status';
 
 type WidgetTab = 'ongkir' | 'resi';
 
@@ -42,8 +45,56 @@ const originAreaId = ref('IDnp10110');
 const destinationInput = ref('Gubeng, Surabaya');
 const destinationAreaId = ref('IDnp60281');
 const weightInput = ref('1');
+const lengthInput = ref('');
+const widthInput = ref('');
+const heightInput = ref('');
 const resiInput = ref('');
 const courierInput = ref('sicepat');
+const showCourierDropdown = ref(false);
+
+const COURIER_OPTIONS = [
+    { code: 'sicepat', name: 'SiCepat Ekspres' },
+    { code: 'jne', name: 'JNE Express' },
+    { code: 'jnt', name: 'J&T Express' },
+    { code: 'anteraja', name: 'AnterAja' },
+    { code: 'ninja', name: 'Ninja Xpress' },
+    { code: 'lion', name: 'Lion Parcel' },
+    { code: 'pos', name: 'Pos Indonesia' },
+    { code: 'tiki', name: 'TIKI' },
+] as const;
+
+const selectedCourierOption = computed(
+    () => COURIER_OPTIONS.find((c) => c.code === courierInput.value) ?? COURIER_OPTIONS[0],
+);
+
+function selectCourierOption(code: string): void {
+    courierInput.value = code;
+    showCourierDropdown.value = false;
+}
+
+const parsedDimensions = computed(() => {
+    const raw = [String(lengthInput.value).trim(), String(widthInput.value).trim(), String(heightInput.value).trim()];
+    const filled = raw.filter((v) => v !== '');
+    if (filled.length === 0) {
+        return { state: 'empty' as const, length: null, width: null, height: null };
+    }
+    const nums = raw.map((v) => Math.round(Number(v)));
+    if (filled.length < 3 || nums.some((n) => !Number.isFinite(n) || n < 1 || n > 500)) {
+        return { state: 'invalid' as const, length: null, width: null, height: null };
+    }
+    return { state: 'valid' as const, length: nums[0], width: nums[1], height: nums[2] };
+});
+
+const activeDimensionsLabel = computed(() => {
+    if (parsedDimensions.value.state !== 'valid') return '';
+    return `${parsedDimensions.value.length}×${parsedDimensions.value.width}×${parsedDimensions.value.height} cm`;
+});
+
+const volumetricEstimateKg = computed(() => {
+    if (parsedDimensions.value.state !== 'valid') return '';
+    const vol = (parsedDimensions.value.length! * parsedDimensions.value.width! * parsedDimensions.value.height!) / 6000;
+    return vol.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+});
 
 const originSuggestions = ref<AreaItem[]>([]);
 const destSuggestions = ref<AreaItem[]>([]);
@@ -65,6 +116,7 @@ const trackErrorMessage = ref('');
 function closeAllDropdowns(): void {
     showOriginDropdown.value = false;
     showDestDropdown.value = false;
+    showCourierDropdown.value = false;
 }
 
 function resetTab(next: WidgetTab = 'ongkir'): void {
@@ -198,13 +250,105 @@ function onItemPointerUp(e: PointerEvent, callback: () => void): void {
 function handleDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
     if (!target) return;
-    if (!target.closest('.field-origin') && !target.closest('.field-destination')) {
+    if (!target.closest('.field-origin') && !target.closest('.field-destination') && !target.closest('.field-courier')) {
         closeAllDropdowns();
     }
 }
 
 onMounted(() => {
     document.addEventListener('click', handleDocumentClick);
+
+    const search = new URLSearchParams(window.location.search);
+    const tabParam = search.get('tab');
+    const courierParam = search.get('courier')?.toLowerCase().trim();
+    const waybillParam = search.get('waybill')?.trim();
+
+    if (tabParam === 'resi' || waybillParam) {
+        tab.value = 'resi';
+        if (courierParam && COURIER_OPTIONS.some((c) => c.code === courierParam)) {
+            courierInput.value = courierParam;
+        }
+        if (waybillParam) {
+            resiInput.value = waybillParam;
+            submitWidget();
+        }
+    }
+});
+
+function formatTrackTimestamp(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    try {
+        let d = new Date(dateStr);
+        if (Number.isNaN(d.getTime()) && dateStr.includes(' ')) {
+            d = new Date(dateStr.replace(' ', 'T'));
+        }
+        if (Number.isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
+const trackTimelineSteps = computed(() => {
+    const result = trackResult.value;
+    if (!result) return [];
+
+    const steps: Array<{ title: string; note: string; time: string | null; variant: string }> = [];
+    const history: any[] = Array.isArray(result.history) ? result.history : [];
+
+    if (result.source === 'satukirim') {
+        steps.push({
+            title: 'Pesanan Dibuat',
+            note: 'Pesanan berhasil dibuat di sistem SatuKirim',
+            time: result.created_at || null,
+            variant: 'neutral',
+        });
+
+        const isCod = (result.payment_method || '').toLowerCase() === 'cod';
+        if (isCod) {
+            steps.push({
+                title: 'Konfirmasi Sistem COD',
+                note: 'Metode Bayar di Tempat (COD) telah terverifikasi sistem',
+                time: result.paid_at || result.created_at || null,
+                variant: 'info',
+            });
+        } else if (result.paid_at || result.status !== 'pending_payment') {
+            steps.push({
+                title: 'Pembayaran Ongkir',
+                note: 'Pembayaran ongkos kirim telah terverifikasi',
+                time: result.paid_at || null,
+                variant: 'info',
+            });
+        }
+    }
+
+    history.forEach((item) => {
+        const mapped = getShipmentStatus(item.status);
+        const title = item.status === 'paid' ? 'Penjemputan Terkonfirmasi' : mapped.label;
+        steps.push({
+            title,
+            note: formatTrackingNote(item.note) || `Status kurir: ${title}`,
+            time: item.timestamp || item.updated_at || null,
+            variant: mapped.variant,
+        });
+    });
+
+    if (steps.length === 0) {
+        const current = getShipmentStatus(result.status);
+        steps.push({
+            title: current.label,
+            note: 'Paket telah tercatat pada sistem ekspedisi.',
+            time: null,
+            variant: current.variant,
+        });
+    }
+
+    return steps;
 });
 
 onUnmounted(() => {
@@ -264,23 +408,36 @@ async function submitWidget(): Promise<void> {
                 return;
             }
 
+            if (parsedDimensions.value.state === 'invalid') {
+                rateErrorMessage.value = 'Isi lengkap panjang, lebar, dan tinggi (1–500 cm) atau kosongkan ketiganya.';
+                return;
+            }
+
+            const payload: Record<string, string | number> = {
+                origin_area_id: oId || 'IDnp10110',
+                destination_area_id: dId || 'IDnp60281',
+                weight: parsedWeight,
+            };
+            if (parsedDimensions.value.state === 'valid') {
+                payload.length = parsedDimensions.value.length!;
+                payload.width = parsedDimensions.value.width!;
+                payload.height = parsedDimensions.value.height!;
+            }
+
             const response = await fetch('/api/public/rates', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({
-                    origin_area_id: oId || 'IDnp10110',
-                    destination_area_id: dId || 'IDnp60281',
-                    weight: parsedWeight,
-                }),
+                body: JSON.stringify(payload),
             });
 
             const result = await response.json();
 
             if (response.status === 422) {
-                rateErrorMessage.value = result.errors?.weight?.[0] || result.message || 'Validasi formulir gagal.';
+                const firstError = result.errors ? Object.values(result.errors).flat()[0] : null;
+                rateErrorMessage.value = (typeof firstError === 'string' && firstError) || result.errors?.weight?.[0] || result.message || 'Validasi formulir gagal.';
                 return;
             }
 
@@ -337,13 +494,13 @@ async function submitWidget(): Promise<void> {
                     <Wallet class="icon" style="width: 1rem; height: 1rem" /> Cek Ongkir
                 </button>
                 <button type="button" class="tab" :class="{ active: tab === 'resi' }" @click="resetTab('resi')">
-                    <Package class="icon" style="width: 1rem; height: 1rem" /> Lacak Status
+                    <Package class="icon" style="width: 1rem; height: 1rem" /> Riwayat Pengiriman
                 </button>
             </div>
             <form class="widget-body" @submit.prevent="submitWidget">
-                <p class="widget-title">{{ tab === 'ongkir' ? 'Berapa ongkir paketmu hari ini?' : 'Pantau posisi barang pesanan' }}</p>
+                <p class="widget-title">{{ tab === 'ongkir' ? 'Berapa ongkir paketmu hari ini?' : 'Cek riwayat status pengiriman' }}</p>
                 <p class="widget-sub">
-                    {{ tab === 'ongkir' ? 'Bandingkan tarif terbaik dari 8 ekspedisi resmi (JNE, J&T, SiCepat, AnterAja, TIKI, POS, Ninja, Lion).' : 'Masukkan nomor resi resmi untuk memantau pergerakan paket.' }}
+                    {{ tab === 'ongkir' ? 'Bandingkan tarif terbaik dari 8 ekspedisi resmi (JNE, J&T, SiCepat, AnterAja, TIKI, POS, Ninja, Lion).' : 'Masukkan nomor resi resmi untuk melihat riwayat status pengantaran paket.' }}
                 </p>
 
                 <div v-if="tab === 'ongkir'" class="quick-routes">
@@ -476,28 +633,93 @@ async function submitWidget(): Promise<void> {
                             />
                         </span>
                     </div>
+                    <div class="field field-dimensions">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem">
+                            <span class="field-label">Dimensi Paket (cm)</span>
+                            <span class="weight-limit-badge">
+                                {{ volumetricEstimateKg ? `Volumetrik: ${volumetricEstimateKg} kg` : 'Opsional' }}
+                            </span>
+                        </div>
+                        <div class="dimensions-grid">
+                            <span class="input-wrap dim-input-wrap">
+                                <input
+                                    id="length-input"
+                                    v-model="lengthInput"
+                                    min="1"
+                                    max="500"
+                                    step="1"
+                                    type="number"
+                                    placeholder="P (cm)"
+                                    aria-label="Panjang (cm)"
+                                />
+                            </span>
+                            <span class="input-wrap dim-input-wrap">
+                                <input
+                                    id="width-input"
+                                    v-model="widthInput"
+                                    min="1"
+                                    max="500"
+                                    step="1"
+                                    type="number"
+                                    placeholder="L (cm)"
+                                    aria-label="Lebar (cm)"
+                                />
+                            </span>
+                            <span class="input-wrap dim-input-wrap">
+                                <input
+                                    id="height-input"
+                                    v-model="heightInput"
+                                    min="1"
+                                    max="500"
+                                    step="1"
+                                    type="number"
+                                    placeholder="T (cm)"
+                                    aria-label="Tinggi (cm)"
+                                />
+                            </span>
+                        </div>
+                    </div>
                 </template>
 
                 <template v-else>
-                    <label class="field">
-                        Pilihan Ekspedisi
-                        <span class="input-wrap">
-                            <Truck class="icon" />
-                            <select v-model="courierInput" style="width: 100%; border: 0; outline: 0; background: transparent; padding: 0.75rem 0; font-weight: 500; color: var(--charcoal)">
-                                <option value="sicepat">SiCepat Ekspres</option>
-                                <option value="jne">JNE Express</option>
-                                <option value="jnt">J&amp;T Express</option>
-                                <option value="anteraja">AnterAja</option>
-                                <option value="ninja">Ninja Xpress</option>
-                                <option value="lion">Lion Parcel</option>
-                                <option value="pos">Pos Indonesia</option>
-                                <option value="tiki">TIKI</option>
-                            </select>
-                        </span>
-                    </label>
+                    <div class="field field-courier" :class="{ 'is-open': showCourierDropdown }">
+                        <span class="field-label">Pilihan Ekspedisi</span>
+                        <button
+                            type="button"
+                            class="input-wrap courier-select-trigger"
+                            :aria-expanded="showCourierDropdown"
+                            @click="showCourierDropdown = !showCourierDropdown"
+                        >
+                            <span class="courier-trigger-left">
+                                <span v-if="getCourierLogo(selectedCourierOption.code)" class="courier-logo-pill">
+                                    <img :src="getCourierLogo(selectedCourierOption.code)!" :alt="selectedCourierOption.name" />
+                                </span>
+                                <Truck v-else class="icon" />
+                                <span class="courier-trigger-name">{{ selectedCourierOption.name }}</span>
+                            </span>
+                            <ChevronDown class="courier-chevron" :class="{ 'is-rotated': showCourierDropdown }" />
+                        </button>
+                        <ul v-if="showCourierDropdown" class="area-autocomplete-list courier-dropdown-list">
+                            <li
+                                v-for="courier in COURIER_OPTIONS"
+                                :key="courier.code"
+                                class="area-autocomplete-item courier-dropdown-item"
+                                :class="{ 'is-selected': courierInput === courier.code }"
+                                @click="selectCourierOption(courier.code)"
+                            >
+                                <span class="courier-option-left">
+                                    <span v-if="getCourierLogo(courier.code)" class="courier-logo-pill">
+                                        <img :src="getCourierLogo(courier.code)!" :alt="courier.name" />
+                                    </span>
+                                    <span>{{ courier.name }}</span>
+                                </span>
+                                <Check v-if="courierInput === courier.code" class="courier-check-icon" />
+                            </li>
+                        </ul>
+                    </div>
                     <label class="field">
                         Nomor Resi Pengiriman
-                        <span class="input-wrap"><Package class="icon" /><input v-model="resiInput" required placeholder="Contoh: 004281920194 atau JP0123456789" /></span>
+                        <span class="input-wrap"><Package class="icon" /><input v-model="resiInput" required placeholder="Contoh: WYB-1794841290984 atau SK-0069JKD" /></span>
                     </label>
                 </template>
 
@@ -505,7 +727,7 @@ async function submitWidget(): Promise<void> {
                     <Loader2 v-if="isSearchingRates || isTrackingResi" class="icon btn-spin" style="width: 1rem; height: 1rem" />
                     <Search v-else class="icon" style="width: 1rem; height: 1rem" />
                     <span v-if="tab === 'ongkir'">{{ isSearchingRates ? 'Memeriksa Tarif Kurir...' : 'Lihat Pilihan Ongkos Kirim' }}</span>
-                    <span v-else>{{ isTrackingResi ? 'Melacak Status Paket...' : 'Lacak Lokasi Paket' }}</span>
+                    <span v-else>{{ isTrackingResi ? 'Memuat Riwayat Paket...' : 'Cek Riwayat Pengiriman' }}</span>
                 </button>
 
                 <div v-if="showDemo && tab === 'ongkir'" class="results">
@@ -527,7 +749,7 @@ async function submitWidget(): Promise<void> {
                                 <MapPin class="icon-inline" />
                                 <div class="results-route-content">
                                     <span class="results-route-text">{{ originInput }} → {{ destinationInput }}</span>
-                                    <span class="results-route-weight">• {{ weightInput }} kg</span>
+                                    <span class="results-route-weight">({{ weightInput }} kg{{ activeDimensionsLabel ? `, ${activeDimensionsLabel}` : '' }})</span>
                                 </div>
                             </div>
                         </div>
@@ -540,7 +762,7 @@ async function submitWidget(): Promise<void> {
                                     </div>
                                     <small>
                                         <Clock class="icon-inline" />
-                                        <span>Estimasi tiba: {{ rate.eta }} • Pickup resmi kurir</span>
+                                        <span>Estimasi tiba: {{ rate.eta }} — Pickup resmi kurir</span>
                                     </small>
                                 </div>
                                 <div class="result-price">
@@ -563,28 +785,64 @@ async function submitWidget(): Promise<void> {
                     <template v-else-if="trackResult">
                         <div class="results-header">
                             <div class="results-heading-row">
-                                <span class="results-title">Hasil Pelacakan Resi</span>
-                                <span class="results-badge">{{ trackResult.status || 'Tercatat' }}</span>
+                                <span class="results-title">Detail Riwayat Pengiriman</span>
+                                <span class="results-badge" :class="`status-${getShipmentStatus(trackResult.status).variant}`">
+                                    {{ getShipmentStatus(trackResult.status).label }}
+                                </span>
                             </div>
                             <div class="results-route-tag">
-                                <Truck class="icon-inline" />
+                                <span v-if="getCourierLogo(trackResult.courier?.company || courierInput)" class="courier-logo-pill small">
+                                    <img :src="getCourierLogo(trackResult.courier?.company || courierInput)!" :alt="trackResult.courier?.name || courierInput" />
+                                </span>
+                                <Truck v-else class="icon-inline" />
                                 <div class="results-route-content">
-                                    <span class="results-route-text">{{ trackResult.courier?.name || courierInput.toUpperCase() }}</span>
-                                    <span class="results-route-weight">• No. Resi: {{ resiInput }}</span>
+                                    <span class="results-route-text">{{ trackResult.courier?.name || selectedCourierOption.name }}</span>
+                                    <span class="results-route-weight">({{ trackResult.waybill_id || resiInput }})</span>
+                                    <span v-if="trackResult.estimated_delivery" class="track-eta-pill">
+                                        Estimasi {{ trackResult.estimated_delivery }}
+                                    </span>
                                 </div>
                             </div>
                         </div>
-                        <div class="results-list">
-                            <div class="result-row best">
-                                <div class="result-info">
-                                    <span class="courier-name">{{ trackResult.courier?.name || courierInput.toUpperCase() }} ({{ resiInput }})</span>
-                                    <small>
-                                        <Truck class="icon-inline" />
-                                        <span>Status: {{ trackResult.status || 'Tercatat' }} • {{ trackResult.history?.[0]?.note || 'Paket dalam pemrosesan kurir' }}</span>
-                                    </small>
-                                </div>
-                                <div class="result-price">
-                                    <b style="color: #16a34a">{{ trackResult.status || 'Aktif' }}</b>
+
+                        <div
+                            v-if="trackResult.origin_store_name || trackResult.origin_area_name || trackResult.destination_area_name"
+                            class="track-summary-box"
+                        >
+                            <div class="track-route-line">
+                                <MapPin class="icon-inline" />
+                                <span>
+                                    <strong>{{ trackResult.origin_store_name || 'Pengirim' }}</strong>
+                                    <template v-if="trackResult.origin_area_name"> ({{ trackResult.origin_area_name }})</template>
+                                    <template v-if="trackResult.destination_area_name"> → <strong>{{ trackResult.destination_area_name }}</strong></template>
+                                </span>
+                            </div>
+                            <div v-if="trackResult.weight || trackResult.payment_method" class="track-meta-row">
+                                <span v-if="trackResult.weight">Berat {{ formatWeight(trackResult.weight) }}</span>
+                                <span v-if="trackResult.weight && trackResult.payment_method">|</span>
+                                <span v-if="trackResult.payment_method">
+                                    {{ trackResult.payment_method === 'cod' ? 'Bayar di Tempat (COD)' : 'Lunas (Non-COD)' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="track-timeline-wrap">
+                            <div class="track-timeline-title">Riwayat Pengiriman</div>
+                            <div class="track-timeline-list">
+                                <div
+                                    v-for="(step, idx) in trackTimelineSteps"
+                                    :key="idx"
+                                    class="track-timeline-item"
+                                    :class="{ 'is-latest': idx === trackTimelineSteps.length - 1 }"
+                                >
+                                    <span class="track-timeline-dot" :class="`dot-${step.variant}`" />
+                                    <div class="track-timeline-body">
+                                        <div class="track-timeline-head">
+                                            <span class="track-step-title">{{ step.title }}</span>
+                                            <span v-if="step.time" class="track-step-time">{{ formatTrackTimestamp(step.time) }}</span>
+                                        </div>
+                                        <p class="track-step-note">{{ step.note }}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

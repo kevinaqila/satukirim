@@ -112,7 +112,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                     <p class="kicker"><Sparkles class="icon" style="width: 1rem; height: 1rem" /> Agregator Logistik Cerdas untuk UMKM</p>
                     <h1>Kirim paket jualan, <em>tanpa drama ribet.</em></h1>
                     <p class="hero-desc">
-                        Cek ongkir 8 ekspedisi, bayar QRIS atau COD, cetak label A6, dan lacak paket dari satu aplikasi ringan di HP.
+                        Cek ongkir 8 ekspedisi, bayar QRIS atau COD, cetak label A6, dan pantau riwayat pengiriman dari satu aplikasi ringan di HP.
                     </p>
                     <div class="hero-cta">
                         <Link :href="register()" class="btn-pill btn-berry">Mulai Kirim Sekarang <ArrowRight class="icon" /></Link>
@@ -228,7 +228,7 @@ function scrollToSection(sectionId: string, event?: Event): void {
                                     <span class="live-dot" />
                                     <strong>Kurir Menjemput</strong>
                                 </div>
-                                <small>SiCepat • Penjemputan Terjadwal</small>
+                                <small>SiCepat — Penjemputan Terjadwal</small>
                             </div>
                         </div>
 

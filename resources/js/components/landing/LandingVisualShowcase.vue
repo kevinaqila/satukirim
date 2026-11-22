@@ -33,7 +33,7 @@ import { vReveal } from '@/data/landing';
                                     <strong>Toko Kamu Official</strong>
                                     <span class="wa-verified">✓</span>
                                 </div>
-                                <small class="wa-status-text">Online • Akun Terverifikasi</small>
+                                <small class="wa-status-text">Online — Akun Terverifikasi</small>
                             </div>
                             <span class="wa-brand-pill">WhatsApp</span>
                         </div>
@@ -59,7 +59,7 @@ import { vReveal } from '@/data/landing';
                                         <code class="wa-resi-code">004281920194</code>
                                     </div>
                                     <div class="wa-track-url-box">
-                                        <span class="wa-track-link-text">🔗 Lacak resi di: satukirim.id</span>
+                                        <span class="wa-track-link-text">🔗 Cek riwayat resi di: satukirim.id</span>
                                     </div>
                                 </div>
 
@@ -184,7 +184,7 @@ import { vReveal } from '@/data/landing';
                                         <strong>Sedang diantar kurir (Budi S.)</strong>
                                         <span class="step-badge-now">Sekarang</span>
                                     </div>
-                                    <p class="step-desc">Surabaya Barat • 13:45 WIB</p>
+                                    <p class="step-desc">Surabaya Barat, 13:45 WIB</p>
                                 </div>
                             </div>
 
@@ -195,7 +195,7 @@ import { vReveal } from '@/data/landing';
                                 </div>
                                 <div class="step-body">
                                     <strong class="step-title-done">Tiba di Sorting Hub Surabaya</strong>
-                                    <p class="step-desc">Hub Logistik Surabaya • 08:20 WIB</p>
+                                    <p class="step-desc">Hub Logistik Surabaya, 08:20 WIB</p>
                                 </div>
                             </div>
 
@@ -206,7 +206,7 @@ import { vReveal } from '@/data/landing';
                                 </div>
                                 <div class="step-body">
                                     <strong class="step-title-done">Keluar dari Gateway Transit Jakarta</strong>
-                                    <p class="step-desc">Gateway Logistik • Kemarin 22:40 WIB</p>
+                                    <p class="step-desc">Gateway Logistik, Kemarin 22:40 WIB</p>
                                 </div>
                             </div>
 
@@ -216,7 +216,7 @@ import { vReveal } from '@/data/landing';
                                 </div>
                                 <div class="step-body">
                                     <strong class="step-title-done">Paket dijemput kurir dari tokomu</strong>
-                                    <p class="step-desc">Pick-up Bandung • Kemarin 16:15 WIB</p>
+                                    <p class="step-desc">Pick-up Bandung, Kemarin 16:15 WIB</p>
                                 </div>
                             </div>
                         </div>

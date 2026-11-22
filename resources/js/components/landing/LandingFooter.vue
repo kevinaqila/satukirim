@@ -88,7 +88,7 @@ const emit = defineEmits<{
                         <h3 class="footer-col-title">Layanan & Fitur</h3>
                         <ul class="footer-col-links">
                             <li><a href="#layanan" @click="emit('scrollTo', 'layanan', $event)">Cek Tarif Ongkir Real-Time</a></li>
-                            <li><a href="#layanan" @click="emit('scrollTo', 'layanan', $event)">Pelacakan Resi (Live AWB)</a></li>
+                            <li><a href="#layanan" @click="emit('scrollTo', 'layanan', $event)">Riwayat Pengiriman Resi (AWB)</a></li>
                             <li><a href="#layanan" @click="emit('scrollTo', 'layanan', $event)">Booking Kurir Jemput Gratis</a></li>
                             <li><a href="#fitur" @click="emit('scrollTo', 'fitur', $event)">Layanan Bayar Ditempat (COD)</a></li>
                             <li><a href="#fitur" @click="emit('scrollTo', 'fitur', $event)">Dompet Saldo & Pencairan Dana</a></li>
@@ -148,9 +148,9 @@ const emit = defineEmits<{
                 </p>
                 <div class="footer-legal-links">
                     <a href="#faq" @click="emit('scrollTo', 'faq', $event)">Syarat & Ketentuan</a>
-                    <span>•</span>
+                    <span>|</span>
                     <a href="#faq" @click="emit('scrollTo', 'faq', $event)">Kebijakan Privasi</a>
-                    <span>•</span>
+                    <span>|</span>
                     <a href="#faq" @click="emit('scrollTo', 'faq', $event)">Keamanan Data</a>
                 </div>
             </div>
