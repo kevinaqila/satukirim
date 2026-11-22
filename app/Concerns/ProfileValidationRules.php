@@ -19,6 +19,23 @@ trait ProfileValidationRules
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
             'phone' => $this->phoneRules(),
+            'avatar' => $this->avatarRules(),
+            'remove_avatar' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
+     * Get the validation rules used to validate user profile avatars.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function avatarRules(bool $required = false): array
+    {
+        return [
+            $required ? 'required' : 'nullable',
+            'image',
+            'mimes:jpg,jpeg,png,webp',
+            'max:2048',
         ];
     }
 

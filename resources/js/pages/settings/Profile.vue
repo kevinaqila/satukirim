@@ -2,8 +2,8 @@
 import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import DeleteUser from '@/components/DeleteUser.vue';
 import InputError from '@/components/InputError.vue';
+import ProfileAvatarPicker from '@/components/settings/ProfileAvatarPicker.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,12 +29,18 @@ const user = computed(() => page.props.auth.user);
     <div class="space-y-4 sm:space-y-6">
         <Head title="Profil Akun - SatuKirim" />
 
-        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs">
+        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs space-y-5">
+            <ProfileAvatarPicker
+                :avatar="user.avatar"
+                :user-name="user.name"
+            />
+
             <Form
                 v-bind="ProfileController.update.form()"
                 class="space-y-4"
                 v-slot="{ errors, processing }"
             >
+
                 <div class="grid gap-1.5">
                     <Label for="name" class="text-xs sm:text-sm font-semibold text-stone-800">
                         Nama Lengkap
@@ -119,10 +125,6 @@ const user = computed(() => page.props.auth.user);
                     </Button>
                 </div>
             </Form>
-        </div>
-
-        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs">
-            <DeleteUser />
         </div>
     </div>
 </template>

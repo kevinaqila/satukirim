@@ -19,8 +19,8 @@ const showAvatar = computed(
 </script>
 
 <template>
-    <Avatar class="h-8 w-8 overflow-hidden rounded-lg shrink-0">
-        <AvatarImage v-if="showAvatar" :src="user.avatar!" :alt="user.name" />
+    <Avatar :key="user.avatar || 'fallback'" class="h-8 w-8 overflow-hidden rounded-lg shrink-0">
+        <AvatarImage v-if="showAvatar" :src="user.avatar!" :alt="user.name" class="object-cover" />
         <AvatarFallback class="rounded-lg bg-stone-200 text-stone-400">
             <svg
                 class="size-5"

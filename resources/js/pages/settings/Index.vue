@@ -71,8 +71,16 @@ onMounted(() => {
 
         <div class="px-4 py-4 sm:py-6 max-w-xl mx-auto w-full space-y-4 sm:space-y-6">
             <div class="flex items-center gap-3.5 p-4 rounded-xl bg-white border border-stone-200 text-stone-900 shadow-2xs">
-                <Avatar class="size-12 rounded-full border border-stone-200 bg-stone-100 shrink-0">
-                    <AvatarImage v-if="user?.avatar" :src="user.avatar" :alt="user?.name" />
+                <Avatar
+                    :key="user?.avatar || 'fallback'"
+                    class="size-12 rounded-full border border-stone-200 bg-stone-100 shrink-0"
+                >
+                    <AvatarImage
+                        v-if="user?.avatar"
+                        :src="user.avatar"
+                        :alt="user?.name"
+                        class="object-cover"
+                    />
                     <AvatarFallback class="font-bold text-sm bg-[#853953] text-white">
                         {{ getInitials(user?.name || '') }}
                     </AvatarFallback>

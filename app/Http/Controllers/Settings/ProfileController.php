@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\BankAccountUpdateRequest;
+use App\Http\Requests\Settings\ProfileAvatarUpdateRequest;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,15 +35,57 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $validated = $request->validated();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        unset($validated['avatar'], $validated['remove_avatar']);
+
+        $user->fill($validated);
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
         }
 
-        $request->user()->save();
+        if ($request->hasFile('avatar')) {
+            $this->replaceLocalAvatar($user, $request->file('avatar'));
+        } elseif ($request->boolean('remove_avatar')) {
+            $this->deleteLocalAvatar($user->avatar);
+            $user->avatar = null;
+        }
+
+        $user->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Profile updated.')]);
+
+        return back();
+    }
+
+    /**
+     * Upload and immediately update the authenticated user's profile photo.
+     */
+    public function updateAvatar(ProfileAvatarUpdateRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $this->replaceLocalAvatar($user, $request->file('avatar'));
+        $user->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Foto profil berhasil diperbarui.']);
+
+        return back();
+    }
+
+    /**
+     * Remove the authenticated user's profile photo.
+     */
+    public function destroyAvatar(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $this->deleteLocalAvatar($user->avatar);
+        $user->forceFill(['avatar' => null])->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Foto profil berhasil dihapus.']);
 
         return back();
     }
@@ -73,11 +119,31 @@ class ProfileController extends Controller
 
         Auth::logout();
 
+        $this->deleteLocalAvatar($user->avatar);
         $user->delete();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function replaceLocalAvatar(User $user, UploadedFile $file): void
+    {
+        $this->deleteLocalAvatar($user->avatar);
+        $storedPath = $file->store('avatars', 'public');
+        $user->avatar = '/storage/'.$storedPath;
+    }
+
+    private function deleteLocalAvatar(?string $avatarUrl): void
+    {
+        if (! is_string($avatarUrl) || ! str_starts_with($avatarUrl, '/storage/')) {
+            return;
+        }
+
+        $relativePath = substr($avatarUrl, strlen('/storage/'));
+        if ($relativePath !== '') {
+            Storage::disk('public')->delete($relativePath);
+        }
     }
 }

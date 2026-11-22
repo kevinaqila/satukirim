@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -17,6 +19,7 @@ test('profile information can be updated', function () {
 
     $response = $this
         ->actingAs($user)
+        ->from(route('profile.edit'))
         ->patch(route('profile.update'), [
             'name' => 'Test User',
             'email' => 'test@example.com',
@@ -40,6 +43,7 @@ test('email verification status is unchanged when the email address is unchanged
 
     $response = $this
         ->actingAs($user)
+        ->from(route('profile.edit'))
         ->patch(route('profile.update'), [
             'name' => 'Test User',
             'email' => $user->email,
@@ -125,4 +129,84 @@ test('bank settings rejects invalid bank code or non-numeric account number', fu
         ]);
 
     $response->assertSessionHasErrors(['bank_code', 'bank_account_number', 'bank_account_name']);
+});
+
+test('user can upload replace and delete profile avatar', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $firstImage = UploadedFile::fake()->image('avatar-1.jpg', 300, 300);
+
+    $uploadResponse = $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->post(route('profile.avatar.update'), [
+            'avatar' => $firstImage,
+        ]);
+
+    $uploadResponse
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    $user->refresh();
+    expect($user->avatar)->toStartWith('/storage/avatars/');
+
+    $firstRelativePath = substr($user->avatar, strlen('/storage/'));
+    Storage::disk('public')->assertExists($firstRelativePath);
+
+    $secondImage = UploadedFile::fake()->image('avatar-2.png', 300, 300);
+
+    $replaceResponse = $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->post(route('profile.avatar.update'), [
+            'avatar' => $secondImage,
+        ]);
+
+    $replaceResponse
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+    $user->refresh();
+
+    $secondRelativePath = substr($user->avatar, strlen('/storage/'));
+    expect($secondRelativePath)->not->toBe($firstRelativePath);
+    Storage::disk('public')->assertMissing($firstRelativePath);
+    Storage::disk('public')->assertExists($secondRelativePath);
+
+    $deleteResponse = $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->delete(route('profile.avatar.destroy'));
+
+    $deleteResponse
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    expect($user->refresh()->avatar)->toBeNull();
+    Storage::disk('public')->assertMissing($secondRelativePath);
+});
+
+test('profile avatar rejects invalid file type or oversized image', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    $invalidTypeResponse = $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->post(route('profile.avatar.update'), [
+            'avatar' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
+        ]);
+
+    $invalidTypeResponse->assertSessionHasErrors('avatar');
+
+    $oversizedResponse = $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->post(route('profile.avatar.update'), [
+            'avatar' => UploadedFile::fake()->image('large-avatar.jpg')->size(2500),
+        ]);
+
+    $oversizedResponse->assertSessionHasErrors('avatar');
+    expect($user->refresh()->avatar)->toBeNull();
 });

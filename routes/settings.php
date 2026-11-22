@@ -9,6 +9,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('settings/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+    Route::delete('settings/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
 
     Route::get('settings/bank', [ProfileController::class, 'editBank'])->name('bank.edit');
     Route::patch('settings/bank', [ProfileController::class, 'updateBank'])->name('bank.update');
@@ -25,10 +27,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::redirect('settings/appearance', '/settings/profile')->name('appearance.edit');
 });
-
-Route::get('.well-known/passkey-endpoints', function () {
-    return response()->json([
-        'enroll' => route('security.edit'),
-        'manage' => route('security.edit'),
-    ]);
-})->name('well-known.passkeys');

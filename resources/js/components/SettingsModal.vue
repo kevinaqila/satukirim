@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
 import { useMediaQuery } from '@vueuse/core';
 import {
     Check,
@@ -13,7 +13,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import DeleteUser from '@/components/DeleteUser.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import ProfileAvatarPicker from '@/components/settings/ProfileAvatarPicker.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +24,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { getInitials } from '@/composables/useInitials';
 import { useSettingsModal } from '@/composables/useSettingsModal';
 
 const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -211,27 +210,10 @@ onUnmounted(() => {
 
                     <main class="flex-1 min-w-0 p-5 sm:p-6 md:p-7 overflow-y-auto bg-white">
                         <div v-if="activeSettingsTab === 'profile'" class="w-full space-y-5">
-                            <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-stone-50/90 border border-stone-200/70">
-                                <Avatar class="size-11 rounded-full border border-stone-200 bg-white shrink-0">
-                                    <AvatarImage v-if="user?.avatar" :src="user.avatar" :alt="user?.name" />
-                                    <AvatarFallback class="font-bold text-sm bg-[#853953] text-white">
-                                        {{ getInitials(user?.name || '') }}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <p class="text-sm font-bold text-[#2C2C2C] truncate">
-                                            {{ user?.name }}
-                                        </p>
-                                        <span class="px-2 py-0.5 rounded-md bg-[#853953]/10 text-[#853953] text-[11px] font-semibold shrink-0">
-                                            {{ user?.role === 'super_admin' ? 'Super Admin' : 'Mitra UMKM' }}
-                                        </span>
-                                    </div>
-                                    <p class="text-xs text-stone-500 truncate mt-0.5">
-                                        {{ user?.email }}
-                                    </p>
-                                </div>
-                            </div>
+                            <ProfileAvatarPicker
+                                :avatar="user?.avatar"
+                                :user-name="user?.name || ''"
+                            />
 
                             <form @submit.prevent="submitProfile" class="space-y-4">
                                 <div class="space-y-1.5">
@@ -295,10 +277,6 @@ onUnmounted(() => {
                                     </span>
                                 </div>
                             </form>
-
-                            <div class="pt-6 border-t border-stone-100">
-                                <DeleteUser />
-                            </div>
                         </div>
 
                         <div v-else-if="activeSettingsTab === 'bank'" class="w-full space-y-5">
@@ -338,7 +316,7 @@ onUnmounted(() => {
                                         type="text"
                                         inputmode="numeric"
                                         placeholder="Masukkan angka nomor rekening"
-                                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 rounded-lg font-mono"
+                                        class="h-9 sm:h-10 text-xs sm:text-sm bg-white border-stone-200 rounded-lg tabular-nums"
                                         required
                                     />
                                     <InputError :message="bankForm.errors.bank_account_number" />
@@ -440,6 +418,10 @@ onUnmounted(() => {
                                     </span>
                                 </div>
                             </form>
+
+                            <div class="pt-6 border-t border-stone-100">
+                                <DeleteUser />
+                            </div>
                         </div>
                     </main>
                 </div>

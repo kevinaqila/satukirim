@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
+import DeleteUser from '@/components/DeleteUser.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
@@ -99,6 +100,10 @@ defineOptions({
                     </Button>
                 </div>
             </Form>
+        </div>
+
+        <div class="rounded-xl bg-white border border-stone-200/80 p-4 sm:p-5 shadow-2xs">
+            <DeleteUser />
         </div>
     </div>
 </template>
