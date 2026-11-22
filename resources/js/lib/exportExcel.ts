@@ -292,7 +292,6 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
 </styleSheet>`,
     );
 
-    // Initial column widths based on explicit width or header length
     const colWidths = columns.map((c) => c.width ?? Math.max(12, c.header.length + 4));
 
     let currentRow = 1;
@@ -307,10 +306,9 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
         currentRow++;
     }
     if (title || subtitle) {
-        currentRow++; // empty spacing row
+        currentRow++;
     }
 
-    // 6. Header Row (Always centered, primary color background, white bold text)
     const headerRow = currentRow;
     sheetData += `<row r="${headerRow}" customHeight="1" ht="26">`;
     columns.forEach((col, cIdx) => {
@@ -320,7 +318,6 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
     sheetData += `</row>`;
     currentRow++;
 
-    // 7. Data Rows
     data.forEach((row, rIdx) => {
         const isZebra = rIdx % 2 === 1;
         const rNum = currentRow;
@@ -341,20 +338,17 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
                 colWidths[cIdx] = Math.min(45, strVal.length + 3);
             }
 
-            // Determine cell alignment style
-            let sIdx = 4; // left (normal)
+            let sIdx = 4;
             if (col.align === 'center') sIdx = 5;
             else if (col.align === 'right') sIdx = 6;
-            if (isZebra) sIdx += 3; // 7: zebra left, 8: zebra center, 9: zebra right
+            if (isZebra) sIdx += 3;
 
-            // True numeric cell ONLY if explicitly marked as number and value is a valid numeric type
             const isNumeric = col.type === 'number' && typeof val === 'number' && !isNaN(val);
 
             if (isNumeric) {
                 sheetData += `<c r="${cellRef}" s="${sIdx}"><v>${val}</v></c>`;
             } else {
-                // All text, phone numbers (08..., 628...), resi/waybill, and order codes are written as inlineStr
-                // This guarantees Excel NEVER converts them to scientific notation or strips leading zeros!
+                // Keep text, phone numbers, and resi codes as inlineStr so Excel preserves leading zeros
                 sheetData += `<c r="${cellRef}" s="${sIdx}" t="inlineStr"><is><t>${escapeXml(strVal)}</t></is></c>`;
             }
         });
@@ -363,14 +357,12 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
         currentRow++;
     });
 
-    // Column widths definition
     let colsXml = '<cols>';
     colWidths.forEach((w, idx) => {
         colsXml += `<col min="${idx + 1}" max="${idx + 1}" width="${w}" customWidth="1"/>`;
     });
     colsXml += '</cols>';
 
-    // Worksheet XML with grid lines enabled
     const worksheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetViews>
@@ -384,13 +376,11 @@ export function exportToExcel<T = any>(options: ExportExcelOptions<T>): void {
 
     zip.add('xl/worksheets/sheet1.xml', worksheetXml);
 
-    // Build binary .xlsx package
     const xlsxBuffer = zip.build();
     const blob = new Blob([xlsxBuffer as any], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    // Trigger instant browser download with true .xlsx extension
     const cleanFilename = filename.replace(/\.(xls|xlsx|csv)$/i, '');
     const finalFilename = `${cleanFilename}.xlsx`;
 
