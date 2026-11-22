@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Shipment;
-use App\Models\Wallet;
 use App\Services\BiteshipService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -51,65 +49,13 @@ class BiteshipController extends Controller
             return response()->json(['message' => 'Shipment not found'], 404);
         }
 
-        $updates = [];
-
-        if ($waybillId && empty($shipment->waybill_number)) {
-            $updates['waybill_number'] = $waybillId;
-        }
-
-        if ($orderId && empty($shipment->biteship_order_id)) {
-            $updates['biteship_order_id'] = $orderId;
-        }
-
-        $statusMap = [
-            'confirmed' => 'confirmed',
-            'scheduled' => 'confirmed',
-            'allocated' => 'allocated',
-            'pickingup' => 'picking_up',
-            'picking_up' => 'picking_up',
-            'dalam penjemputan' => 'picking_up',
-            'picked' => 'picked',
-            'droppingoff' => 'dropping_off',
-            'dropping_off' => 'dropping_off',
-            'in_transit' => 'in_transit',
-            'intransit' => 'in_transit',
-            'on_process' => 'in_transit',
-            'delivered' => 'delivered',
-            'cancelled' => 'cancelled',
-            'rejected' => 'rejected',
-            'on_hold' => 'on_hold',
-            'onhold' => 'on_hold',
-            'courier_not_found' => 'courier_not_found',
-            'couriernotfound' => 'courier_not_found',
-            'returned' => 'returned',
-            'return_in_transit' => 'returned',
-        ];
-
-        $mappedStatus = $statusMap[$biteshipStatus] ?? null;
-
-        if ($mappedStatus && $mappedStatus !== $shipment->status) {
-            $updates['status'] = $mappedStatus;
-
-            $history = $shipment->tracking_history ?? [];
-            $note = $data['note'] ?? 'Status pengiriman diperbarui kurir menjadi '.ucwords(str_replace('_', ' ', $mappedStatus));
-
-            $history[] = [
-                'status' => $mappedStatus,
-                'note' => $note,
-                'timestamp' => now()->toIso8601String(),
-            ];
-
-            $updates['tracking_history'] = $history;
-        }
-
-        if (! empty($updates)) {
-            $shipment->update($updates);
-
-            if (isset($updates['status']) && in_array($updates['status'], ['delivered', 'cancelled', 'rejected', 'courier_not_found', 'returned'], true)) {
-                $shipment->user?->getOrCreateWallet()->syncBalances();
-                Wallet::syncPlatformBalances();
-            }
-        }
+        $this->biteship->syncShipmentTracking(
+            shipment: $shipment,
+            biteshipStatus: $biteshipStatus,
+            biteshipOrderId: is_string($orderId) ? $orderId : null,
+            waybillId: is_string($waybillId) ? $waybillId : null,
+            note: isset($data['note']) ? (string) $data['note'] : null,
+        );
 
         return response()->json([
             'status' => 'success',
@@ -117,4 +63,3 @@ class BiteshipController extends Controller
         ]);
     }
 }
-

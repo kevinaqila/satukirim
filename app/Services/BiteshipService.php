@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Shipment;
+use App\Models\Wallet;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -103,6 +105,7 @@ class BiteshipService
      * Check courier shipping rates between two area IDs.
      *
      * @param  array<int, string>  $couriers
+     * @param  array<int, array<string, mixed>>|null  $items
      * @return array<string, mixed>
      */
     public function checkRates(
@@ -111,20 +114,50 @@ class BiteshipService
         int $weightInGrams = 1000,
         array $couriers = ['jne', 'sicepat', 'jnt', 'anteraja', 'tiki', 'pos', 'ninja', 'lion'],
         int $codAmount = 50000,
+        ?int $length = null,
+        ?int $width = null,
+        ?int $height = null,
+        ?array $items = null,
     ): array {
+        $itemsPayload = [];
+        if (! empty($items)) {
+            foreach ($items as $item) {
+                $itemsPayload[] = $this->buildBiteshipItemPayload(
+                    item: $item,
+                    defaultName: 'Paket Barang',
+                    defaultDescription: 'Paket pengiriman',
+                    defaultValue: max(1000, $codAmount),
+                    minWeight: 10,
+                );
+            }
+        }
+
+        if ($itemsPayload === []) {
+            $itemsPayload = [
+                $this->buildBiteshipItemPayload(
+                    item: [
+                        'name' => 'Paket Barang',
+                        'description' => 'Paket pengiriman',
+                        'value' => max(1000, $codAmount),
+                        'weight' => min(10000, max(100, $weightInGrams)),
+                        'qty' => 1,
+                        'length' => $length,
+                        'width' => $width,
+                        'height' => $height,
+                    ],
+                    defaultName: 'Paket Barang',
+                    defaultDescription: 'Paket pengiriman',
+                    defaultValue: max(1000, $codAmount),
+                    minWeight: 100,
+                ),
+            ];
+        }
+
         $payload = [
             'origin_area_id' => $originAreaId,
             'destination_area_id' => $destinationAreaId,
             'couriers' => implode(',', $couriers),
-            'items' => [
-                [
-                    'name' => 'Paket Barang',
-                    'description' => 'Paket pengiriman',
-                    'value' => max(1000, $codAmount),
-                    'weight' => min(10000, max(100, $weightInGrams)),
-                    'quantity' => 1,
-                ],
-            ],
+            'items' => $itemsPayload,
             'destination_cash_on_delivery' => max(1000, $codAmount),
             'destination_cash_on_delivery_type' => '7_days',
         ];
@@ -302,25 +335,38 @@ class BiteshipService
         $itemsPayload = [];
         if (! empty($shipment->items) && is_array($shipment->items)) {
             foreach ($shipment->items as $item) {
-                $itemsPayload[] = [
-                    'name' => trim($item['name'] ?? 'Paket Pengiriman'),
-                    'description' => trim($item['category'] ?? ($shipment->item_category ?: 'Retail')),
-                    'value' => max(1000, (int) ($item['value'] ?? 0)),
-                    'quantity' => max(1, (int) ($item['qty'] ?? 1)),
-                    'weight' => max(10, (int) ($item['weight'] ?? 0)),
-                ];
+                $itemDescription = trim((string) ($item['description'] ?? ''));
+
+                $itemsPayload[] = $this->buildBiteshipItemPayload(
+                    item: [
+                        ...$item,
+                        'description' => $itemDescription !== ''
+                            ? $itemDescription
+                            : ($item['category'] ?? ($shipment->item_category ?: 'Retail')),
+                    ],
+                    defaultName: 'Paket Pengiriman',
+                    defaultDescription: $shipment->item_category ?: 'Retail',
+                    defaultValue: 0,
+                    minWeight: 10,
+                );
             }
         }
 
-        if (empty($itemsPayload)) {
+        if ($itemsPayload === []) {
             $itemsPayload = [
-                [
-                    'name' => $shipment->item_description ?: 'Paket Pengiriman',
-                    'description' => $shipment->item_category ?: 'Retail',
-                    'value' => max(1000, $shipment->item_value),
-                    'quantity' => 1,
-                    'weight' => max(100, $shipment->weight),
-                ],
+                $this->buildBiteshipItemPayload(
+                    item: [
+                        'name' => $shipment->item_description ?: 'Paket Pengiriman',
+                        'description' => $shipment->item_category ?: 'Retail',
+                        'value' => $shipment->item_value,
+                        'weight' => $shipment->weight,
+                        'qty' => 1,
+                    ],
+                    defaultName: 'Paket Pengiriman',
+                    defaultDescription: 'Retail',
+                    defaultValue: 1000,
+                    minWeight: 100,
+                ),
             ];
         }
 
@@ -365,7 +411,6 @@ class BiteshipService
                 $errorCode = $errorData['code'] ?? null;
                 $errorMessage = strtolower($errorData['error'] ?? ($errorData['message'] ?? ''));
 
-                // If courier explicitly requires scheduled delivery
                 if ($errorCode === 40002005 || $errorCode === 40002013 || str_contains($errorMessage, 'scheduled') || str_contains($errorMessage, 'delivery_type')) {
                     $wibNow = now('Asia/Jakarta');
                     $pickupDate = $wibNow->hour >= 15 ? $wibNow->copy()->addDay()->format('Y-m-d') : $wibNow->format('Y-m-d');
@@ -425,5 +470,166 @@ class BiteshipService
                 'message' => 'Terjadi kesalahan saat menghubungi API Biteship: '.$e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Map raw Biteship status string into internal shipment status.
+     */
+    public function mapStatus(?string $biteshipStatus): ?string
+    {
+        $normalized = str($biteshipStatus ?? '')->trim()->lower()->toString();
+
+        $statusMap = [
+            'confirmed' => 'confirmed',
+            'scheduled' => 'confirmed',
+            'allocated' => 'allocated',
+            'pickingup' => 'picking_up',
+            'picking_up' => 'picking_up',
+            'dalam penjemputan' => 'picking_up',
+            'picked' => 'picked',
+            'droppingoff' => 'dropping_off',
+            'dropping_off' => 'dropping_off',
+            'in_transit' => 'in_transit',
+            'intransit' => 'in_transit',
+            'on_process' => 'in_transit',
+            'delivered' => 'delivered',
+            'cancelled' => 'cancelled',
+            'rejected' => 'rejected',
+            'on_hold' => 'on_hold',
+            'onhold' => 'on_hold',
+            'courier_not_found' => 'courier_not_found',
+            'couriernotfound' => 'courier_not_found',
+            'returned' => 'returned',
+            'return_in_transit' => 'returned',
+            'disposed' => 'disposed',
+        ];
+
+        return $statusMap[$normalized] ?? null;
+    }
+
+    /**
+     * Synchronize shipment status, waybill, tracking history, wallets, and WhatsApp notification under a lock.
+     *
+     * @param  array<int, array<string, mixed>>|null  $historyItems
+     */
+    public function syncShipmentTracking(
+        Shipment $shipment,
+        ?string $biteshipStatus,
+        ?string $biteshipOrderId = null,
+        ?string $waybillId = null,
+        ?string $note = null,
+        ?array $historyItems = null,
+    ): Shipment {
+        return Cache::lock("shipment:tracking:{$shipment->id}", 15)->block(5, function () use (
+            $shipment,
+            $biteshipStatus,
+            $biteshipOrderId,
+            $waybillId,
+            $note,
+            $historyItems,
+        ): Shipment {
+            $freshShipment = Shipment::find($shipment->id);
+
+            if (! $freshShipment) {
+                return $shipment;
+            }
+
+            $updates = [];
+
+            if (filled($biteshipOrderId) && empty($freshShipment->biteship_order_id)) {
+                $updates['biteship_order_id'] = $biteshipOrderId;
+            }
+
+            if (filled($waybillId) && $waybillId !== $freshShipment->waybill_number) {
+                $updates['waybill_number'] = $waybillId;
+            }
+
+            $mappedStatus = $this->mapStatus($biteshipStatus);
+            $statusChanged = $mappedStatus !== null && $mappedStatus !== $freshShipment->status;
+
+            if ($statusChanged) {
+                $updates['status'] = $mappedStatus;
+            }
+
+            if (is_array($historyItems) && $historyItems !== []) {
+                $formattedHistory = [];
+                foreach ($historyItems as $item) {
+                    $itemStatus = $item['status'] ?? '';
+                    $formattedHistory[] = [
+                        'status' => $this->mapStatus((string) $itemStatus) ?? ($itemStatus !== '' ? $itemStatus : 'in_transit'),
+                        'note' => $item['note'] ?? 'Status kurir: '.str($itemStatus)->trim()->lower()->toString(),
+                        'timestamp' => $item['updated_at'] ?? now()->toIso8601String(),
+                    ];
+                }
+
+                if ($formattedHistory !== ($freshShipment->tracking_history ?? [])) {
+                    $updates['tracking_history'] = $formattedHistory;
+                }
+            } elseif ($statusChanged) {
+                $history = $freshShipment->tracking_history ?? [];
+                $history[] = [
+                    'status' => $mappedStatus,
+                    'note' => $note ?: 'Status pengiriman diperbarui kurir menjadi '.ucwords(str_replace('_', ' ', $mappedStatus)),
+                    'timestamp' => now()->toIso8601String(),
+                ];
+
+                $updates['tracking_history'] = $history;
+            }
+
+            if ($updates !== []) {
+                $freshShipment->update($updates);
+                $freshShipment->refresh();
+
+                if ($statusChanged && in_array($mappedStatus, ['delivered', 'cancelled', 'rejected', 'courier_not_found', 'returned', 'disposed'], true)) {
+                    $freshShipment->user?->getOrCreateWallet()->syncBalances();
+                    Wallet::syncPlatformBalances();
+                }
+
+                if ($statusChanged) {
+                    app(WhatsAppService::class)->notifyShipmentStatusUpdated($freshShipment, $mappedStatus);
+                }
+            }
+
+            $shipment->setRawAttributes($freshShipment->getAttributes());
+
+            return $freshShipment;
+        });
+    }
+
+    /**
+     * Build a Biteship item payload with optional volumetric dimensions.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, int|string>
+     */
+    private function buildBiteshipItemPayload(
+        array $item,
+        string $defaultName,
+        string $defaultDescription,
+        int $defaultValue,
+        int $minWeight = 10,
+    ): array {
+        $name = trim($item['name'] ?? '');
+        $description = trim($item['description'] ?? '');
+
+        $payload = [
+            'name' => $name !== '' ? $name : $defaultName,
+            'description' => $description !== '' ? $description : $defaultDescription,
+            'value' => max(1000, (int) ($item['value'] ?? $defaultValue)),
+            'weight' => min(10000, max($minWeight, (int) ($item['weight'] ?? $minWeight))),
+            'quantity' => max(1, (int) ($item['qty'] ?? $item['quantity'] ?? 1)),
+        ];
+
+        $length = (int) ($item['length'] ?? 0);
+        $width = (int) ($item['width'] ?? 0);
+        $height = (int) ($item['height'] ?? 0);
+
+        if ($length > 0 && $width > 0 && $height > 0) {
+            $payload['length'] = min(500, $length);
+            $payload['width'] = min(500, $width);
+            $payload['height'] = min(500, $height);
+        }
+
+        return $payload;
     }
 }

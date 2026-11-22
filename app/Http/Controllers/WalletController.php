@@ -91,7 +91,7 @@ class WalletController extends Controller
         } elseif ($codStatus === 'pending') {
             $filteredCodQuery->whereIn('status', ['paid', 'waiting_pickup', 'allocated', 'picking_up', 'in_transit']);
         } elseif ($codStatus === 'cancelled') {
-            $filteredCodQuery->whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned']);
+            $filteredCodQuery->whereIn('status', ['cancelled', 'rejected', 'courier_not_found', 'returned', 'disposed']);
         }
 
         if ($codSearch !== '') {

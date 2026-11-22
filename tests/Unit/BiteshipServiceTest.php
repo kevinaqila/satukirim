@@ -191,6 +191,35 @@ test('biteship service clamps weight payload between 100g and 10000g', function 
     Http::assertSent(fn ($request) => $request->data()['items'][0]['weight'] === 100);
 });
 
+test('biteship service includes optional dimensions in check rates and omits when incomplete', function () {
+    Http::fake([
+        'api.biteship.com/v1/rates/couriers' => Http::response([
+            'success' => true,
+            'pricing' => [],
+        ], 200),
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+
+    $service->checkRates('IDnp60281', 'IDnp10110', 1000, length: 30, width: 20, height: 15);
+    Http::assertSent(function ($request) {
+        $item = $request->data()['items'][0] ?? [];
+
+        return ($item['length'] ?? null) === 30
+            && ($item['width'] ?? null) === 20
+            && ($item['height'] ?? null) === 15;
+    });
+
+    $service->checkRates('IDnp60281', 'IDnp10110', 1000, length: 30, width: null, height: 15);
+    Http::assertSent(function ($request) {
+        $item = $request->data()['items'][0] ?? [];
+
+        return ! array_key_exists('length', $item)
+            && ! array_key_exists('width', $item)
+            && ! array_key_exists('height', $item);
+    });
+});
+
 test('biteship service handles tracking response', function () {
     Http::fake([
         'api.biteship.com/v1/trackings/JT123456/couriers/jnt' => Http::response([
@@ -313,6 +342,54 @@ test('biteship service maps multiple items in shipment payload correctly', funct
     });
 });
 
+test('biteship service maps optional item dimensions in create order payload', function () {
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'biteship_dim_order_1',
+            'courier' => ['waybill_id' => 'JNE-DIM-001'],
+        ], 200),
+    ]);
+
+    $shipment = new Shipment([
+        'order_number' => 'SATU-DIM-001',
+        'recipient_name' => 'Budi',
+        'recipient_phone' => '08123456789',
+        'destination_address' => 'Jl. Gubeng',
+        'destination_area_id' => 'IDnp60281',
+        'courier_code' => 'jne',
+        'courier_service_code' => 'reg',
+        'weight' => 500,
+        'item_value' => 100000,
+        'shipping_fee' => 19000,
+        'payment_method' => 'non_cod',
+        'items' => [
+            [
+                'name' => 'Dus Keripik',
+                'qty' => 1,
+                'weight' => 500,
+                'value' => 100000,
+                'length' => 30,
+                'width' => 25,
+                'height' => 20,
+            ],
+        ],
+    ]);
+
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+    $result = $service->createOrder($shipment);
+
+    expect($result['success'])->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        $item = $request->data()['items'][0] ?? [];
+
+        return ($item['length'] ?? null) === 30
+            && ($item['width'] ?? null) === 25
+            && ($item['height'] ?? null) === 20;
+    });
+});
+
 test('biteship service automatically retries when schedule time has passed', function () {
     $callCount = 0;
     Http::fake([
@@ -399,4 +476,25 @@ test('biteship service automatically falls back to now when courier does not sup
         ->and($result['biteship_order_id'])->toBe('biteship_order_fallback_now_456')
         ->and($result['waybill_number'])->toBe('NOW-AWB-777')
         ->and($callCount)->toBe(2);
+});
+
+test('biteship service maps all official biteship statuses consistently', function () {
+    $service = new BiteshipService(apiKey: 'dummy-key', baseUrl: 'https://api.biteship.com');
+
+    expect($service->mapStatus('confirmed'))->toBe('confirmed')
+        ->and($service->mapStatus('scheduled'))->toBe('confirmed')
+        ->and($service->mapStatus('allocated'))->toBe('allocated')
+        ->and($service->mapStatus('pickingUp'))->toBe('picking_up')
+        ->and($service->mapStatus('picked'))->toBe('picked')
+        ->and($service->mapStatus('in_transit'))->toBe('in_transit')
+        ->and($service->mapStatus('on_process'))->toBe('in_transit')
+        ->and($service->mapStatus('droppingOff'))->toBe('dropping_off')
+        ->and($service->mapStatus('delivered'))->toBe('delivered')
+        ->and($service->mapStatus('onHold'))->toBe('on_hold')
+        ->and($service->mapStatus('return_in_transit'))->toBe('returned')
+        ->and($service->mapStatus('returned'))->toBe('returned')
+        ->and($service->mapStatus('cancelled'))->toBe('cancelled')
+        ->and($service->mapStatus('rejected'))->toBe('rejected')
+        ->and($service->mapStatus('courier_not_found'))->toBe('courier_not_found')
+        ->and($service->mapStatus('disposed'))->toBe('disposed');
 });

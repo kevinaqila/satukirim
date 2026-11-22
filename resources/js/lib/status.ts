@@ -114,6 +114,13 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
         badgeClass: 'bg-red-50 text-red-800 border-red-200/80',
         textClass: 'text-red-700',
     },
+    disposed: {
+        label: 'Paket Dimusnahkan',
+        variant: 'danger',
+        dotClass: 'bg-red-500',
+        badgeClass: 'bg-red-50 text-red-800 border-red-200/80',
+        textClass: 'text-red-700',
+    },
 };
 
 export function getShipmentStatus(status: string | undefined | null): StatusConfig {
@@ -204,7 +211,6 @@ export function formatShortDestination(areaName?: string | null, fallbackAddress
     const raw = (areaName || fallbackAddress || '').trim();
     if (!raw) return '-';
 
-    // Strip trailing postal code like ". 60118"
     const withoutPostal = raw.replace(/\.\s*\d{5}$/, '').trim();
     const parts = withoutPostal
         .split(',')
@@ -213,7 +219,6 @@ export function formatShortDestination(areaName?: string | null, fallbackAddress
 
     if (parts.length === 0) return raw;
 
-    // Deduplicate identical segments (case-insensitive, e.g. "Menteng, Menteng")
     const deduped: string[] = [];
     for (const part of parts) {
         if (deduped.length === 0 || deduped[deduped.length - 1].toLowerCase() !== part.toLowerCase()) {
@@ -221,12 +226,10 @@ export function formatShortDestination(areaName?: string | null, fallbackAddress
         }
     }
 
-    // Remove trailing province segment if present
     if (deduped.length > 1 && PROVINCE_NAMES.has(deduped[deduped.length - 1].toLowerCase())) {
         deduped.pop();
     }
 
-    // Take at most the last 2 segments (Kecamatan, Kota)
     const shortParts = deduped.slice(-2);
     return shortParts.join(', ');
 }
@@ -289,7 +292,6 @@ export function formatTrackingNote(note?: string | null): string {
     const text = note.trim();
     const lower = text.toLowerCase();
 
-    // 1. Order confirmed / courier notified
     if (lower.includes('courier order is confirmed') || lower.includes('has been notified to pick up')) {
         const pickupMatch = text.match(/pickup number:\s*([^\s]+)/i);
         const pickupStr = pickupMatch ? ` (Kode Pickup: ${pickupMatch[1]})` : '';
@@ -298,32 +300,26 @@ export function formatTrackingNote(note?: string | null): string {
         return `Order terkonfirmasi di ekspedisi. ${courierName} telah dinotifikasi untuk jadwal penjemputan${pickupStr}.`;
     }
 
-    // 2. Allocated
     if (lower.includes('courier is allocated and ready to pick up') || lower.includes('courier is allocated')) {
         return 'Kurir telah ditugaskan dan bersiap menuju lokasi penjemputan.';
     }
 
-    // 3. Picking up
     if (lower.includes('on the way to pick up') || lower.includes('heading to pick up')) {
         return 'Kurir sedang dalam perjalanan menuju lokasi penjemputan (toko).';
     }
 
-    // 4. Picked
     if (lower.includes('has been picked by courier') || lower.includes('item picked up') || lower.includes('item has been picked')) {
         return 'Paket telah berhasil di-pickup oleh kurir.';
     }
 
-    // 5. In transit to destination / hub
     if (lower.includes('on the way to destination') || lower.includes('in transit to')) {
         return 'Paket sedang dalam perjalanan menuju kota/alamat tujuan.';
     }
 
-    // 6. Dropping off / Out for delivery
     if (lower.includes('dropping off item to destination') || lower.includes('out for delivery') || lower.includes('dropping off')) {
         return 'Kurir sedang dalam perjalanan mengantar paket ke alamat penerima.';
     }
 
-    // 7. Delivered
     if (lower.includes('delivered to') || lower.includes('item has been delivered') || lower.includes('package delivered')) {
         const toMatch = text.match(/delivered to\s+([^,.]+)/i);
         if (toMatch) {
@@ -332,12 +328,10 @@ export function formatTrackingNote(note?: string | null): string {
         return 'Paket telah berhasil diterima oleh penerima.';
     }
 
-    // 8. On hold
     if (lower.includes('on hold') || lower.includes('package is on hold')) {
         return 'Paket sementara ditahan di hub operasional kurir.';
     }
 
-    // 9. Rejected / Cancelled / Courier not found / Returned
     if (lower.includes('courier not found') || lower.includes('courier is not found')) {
         return 'Kurir tidak ditemukan di sekitar area penjemputan.';
     }
@@ -349,6 +343,9 @@ export function formatTrackingNote(note?: string | null): string {
     }
     if (lower.includes('returned') || lower.includes('return')) {
         return 'Paket sedang dalam proses pengembalian ke pengirim (retur).';
+    }
+    if (lower.includes('disposed')) {
+        return 'Paket telah dimusnahkan oleh pihak ekspedisi karena gagal pengiriman/retur melewati batas waktu.';
     }
 
     return text;
