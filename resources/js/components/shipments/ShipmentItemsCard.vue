@@ -16,6 +16,23 @@ const emit = defineEmits<{
     addItem: [];
     removeItem: [index: number];
 }>();
+
+const normalizeDimensionModel = (value: string | number): number | null => {
+    if (value === '' || value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isFinite(num) && num > 0 ? Math.round(num) : null;
+};
+
+const getDimensionCount = (item: CreateShipmentItem): number => {
+    return [item.length, item.width, item.height].filter((v) => typeof v === 'number' && v > 0).length;
+};
+
+const getVolumetricKg = (item: CreateShipmentItem): string | null => {
+    if (getDimensionCount(item) !== 3) return null;
+    const qty = Math.max(1, Number(item.qty) || 1);
+    const volKg = ((Number(item.length) * Number(item.width) * Number(item.height)) / 6000) * qty;
+    return volKg.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+};
 </script>
 
 <template>
@@ -117,6 +134,77 @@ const emit = defineEmits<{
                         />
                         <InputError :message="errors[`items.${idx}.value`]" />
                     </div>
+                </div>
+
+                <div class="space-y-1">
+                    <Label :for="`item-desc-${idx}`" class="text-xs font-medium text-stone-600">
+                        Deskripsi Barang <span class="text-stone-400 font-normal">(Opsional)</span>
+                    </Label>
+                    <Input
+                        :id="`item-desc-${idx}`"
+                        :model-value="item.description ?? ''"
+                        @update:model-value="item.description = String($event)"
+                        placeholder="Varian, warna, ukuran, atau catatan pengemasan (mis. Hitam XL, Bubble Wrap)"
+                        maxlength="255"
+                        class="text-sm h-9 bg-white border border-stone-200"
+                    />
+                    <InputError :message="errors[`items.${idx}.description`]" />
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex flex-wrap items-center justify-between gap-1.5">
+                        <span class="text-xs font-medium text-stone-600">
+                            Dimensi Paket (cm) <span class="text-stone-400 font-normal">(Opsional)</span>
+                        </span>
+                        <span v-if="getVolumetricKg(item)" class="text-xs font-semibold text-[#853953] tabular-nums">
+                            Est. Volumetrik: {{ getVolumetricKg(item) }} kg
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <Input
+                            :id="`item-length-${idx}`"
+                            :model-value="item.length ?? ''"
+                            @update:model-value="item.length = normalizeDimensionModel($event)"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="P (cm)"
+                            aria-label="Panjang (cm)"
+                            class="text-sm h-9 bg-white border border-stone-200 tabular-nums"
+                        />
+                        <Input
+                            :id="`item-width-${idx}`"
+                            :model-value="item.width ?? ''"
+                            @update:model-value="item.width = normalizeDimensionModel($event)"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="L (cm)"
+                            aria-label="Lebar (cm)"
+                            class="text-sm h-9 bg-white border border-stone-200 tabular-nums"
+                        />
+                        <Input
+                            :id="`item-height-${idx}`"
+                            :model-value="item.height ?? ''"
+                            @update:model-value="item.height = normalizeDimensionModel($event)"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="1"
+                            placeholder="T (cm)"
+                            aria-label="Tinggi (cm)"
+                            class="text-sm h-9 bg-white border border-stone-200 tabular-nums"
+                        />
+                    </div>
+                    <p
+                        v-if="getDimensionCount(item) > 0 && getDimensionCount(item) < 3"
+                        class="text-xs text-amber-600 font-medium"
+                    >
+                        Isi lengkap Panjang, Lebar, dan Tinggi (cm) agar volumetrik dapat dihitung.
+                    </p>
+                    <InputError :message="errors[`items.${idx}.length`] || errors[`items.${idx}.width`] || errors[`items.${idx}.height`]" />
                 </div>
 
                 <div v-if="Number(item.qty) > 1" class="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-500 pt-1 border-t border-stone-200/60">

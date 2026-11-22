@@ -6,6 +6,7 @@ use App\Handlers\AuditHandler;
 use App\Models\Shipment;
 use App\Models\Wallet;
 use App\Services\BiteshipService;
+use App\Services\WhatsAppService;
 use App\Services\XenditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -109,6 +110,18 @@ class ShipmentController extends Controller
             'destination_area_id' => ['required', 'string'],
             'weight' => ['required', 'integer', 'min:100', 'max:10000'],
             'item_value' => ['nullable', 'integer', 'min:0'],
+            'length' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:width,height'],
+            'width' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:length,height'],
+            'height' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:length,width'],
+            'items' => ['nullable', 'array', 'min:1', 'max:20'],
+            'items.*.name' => ['nullable', 'string', 'max:255'],
+            'items.*.description' => ['nullable', 'string', 'max:255'],
+            'items.*.qty' => ['required_with:items', 'integer', 'min:1', 'max:1000'],
+            'items.*.weight' => ['required_with:items', 'integer', 'min:10', 'max:10000'],
+            'items.*.value' => ['nullable', 'integer', 'min:0'],
+            'items.*.length' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.width,items.*.height'],
+            'items.*.width' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.length,items.*.height'],
+            'items.*.height' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.length,items.*.width'],
         ]);
 
         $store = $request->user()->stores()->findOrFail($validated['store_id']);
@@ -118,6 +131,10 @@ class ShipmentController extends Controller
             destinationAreaId: $validated['destination_area_id'],
             weightInGrams: $validated['weight'],
             codAmount: max(1000, $validated['item_value'] ?? 0),
+            length: $validated['length'] ?? null,
+            width: $validated['width'] ?? null,
+            height: $validated['height'] ?? null,
+            items: $validated['items'] ?? null,
         );
 
         return response()->json($result);
@@ -139,9 +156,13 @@ class ShipmentController extends Controller
             'item_value' => ['nullable', 'integer', 'min:0'],
             'items' => ['nullable', 'array', 'min:1', 'max:20'],
             'items.*.name' => ['required_with:items', 'string', 'max:255'],
+            'items.*.description' => ['nullable', 'string', 'max:255'],
             'items.*.qty' => ['required_with:items', 'integer', 'min:1', 'max:1000'],
             'items.*.weight' => ['required_with:items', 'integer', 'min:10', 'max:10000'],
             'items.*.value' => ['required_with:items', 'integer', 'min:0'],
+            'items.*.length' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.width,items.*.height'],
+            'items.*.width' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.length,items.*.height'],
+            'items.*.height' => ['nullable', 'integer', 'min:1', 'max:500', 'required_with:items.*.length,items.*.width'],
             'courier_code' => ['required', 'string', 'max:50'],
             'courier_service_code' => ['required', 'string', 'max:50'],
             'courier_service_name' => ['required', 'string', 'max:100'],
@@ -149,6 +170,10 @@ class ShipmentController extends Controller
             'estimated_delivery' => ['nullable', 'string', 'max:50'],
             'is_cod' => ['nullable', 'boolean'],
             'payment_type' => ['nullable', 'string', 'in:non_cod,cod'],
+        ], [
+            'items.*.length.required_with' => 'Isi lengkap panjang, lebar, dan tinggi (cm) atau kosongkan ketiganya.',
+            'items.*.width.required_with' => 'Isi lengkap panjang, lebar, dan tinggi (cm) atau kosongkan ketiganya.',
+            'items.*.height.required_with' => 'Isi lengkap panjang, lebar, dan tinggi (cm) atau kosongkan ketiganya.',
         ]);
 
         $store = $request->user()->stores()->findOrFail($validated['store_id']);
@@ -165,6 +190,7 @@ class ShipmentController extends Controller
             $computedWeight = 0;
             $computedValue = 0;
             $summaryNames = [];
+            $normalizedItems = [];
             foreach ($items as $it) {
                 $q = max(1, (int) ($it['qty'] ?? 1));
                 $w = max(10, (int) ($it['weight'] ?? 100));
@@ -172,8 +198,32 @@ class ShipmentController extends Controller
                 $computedWeight += ($w * $q);
                 $computedValue += ($v * $q);
                 $summaryNames[] = trim($it['name'] ?? 'Barang').($q > 1 ? ' ('.$q.'x)' : '');
+
+                $normalizedItem = [
+                    'name' => trim($it['name']),
+                    'qty' => $q,
+                    'weight' => $w,
+                    'value' => $v,
+                ];
+
+                $desc = trim((string) ($it['description'] ?? ''));
+                if ($desc !== '') {
+                    $normalizedItem['description'] = $desc;
+                }
+
+                $l = (int) ($it['length'] ?? 0);
+                $wi = (int) ($it['width'] ?? 0);
+                $h = (int) ($it['height'] ?? 0);
+                if ($l > 0 && $wi > 0 && $h > 0) {
+                    $normalizedItem['length'] = $l;
+                    $normalizedItem['width'] = $wi;
+                    $normalizedItem['height'] = $h;
+                }
+
+                $normalizedItems[] = $normalizedItem;
             }
 
+            $items = $normalizedItems;
             $validated['weight'] = min(10000, max(100, $computedWeight));
             $validated['item_value'] = $computedValue;
             $validated['item_description'] = implode(', ', $summaryNames);
@@ -252,7 +302,6 @@ class ShipmentController extends Controller
             } else {
                 $errorMessage = $biteshipResult['message'] ?? 'Gagal membuat pesanan ke kurir Biteship.';
 
-                // Delete the draft shipment so no phantom/cancelled shipment is left behind
                 $shipment->delete();
 
                 return back()->withErrors([
@@ -262,6 +311,8 @@ class ShipmentController extends Controller
 
             $request->user()->getOrCreateWallet()->syncBalances();
             Wallet::syncPlatformBalances();
+
+            app(WhatsAppService::class)->notifyShipmentReady($shipment->fresh() ?? $shipment);
         }
 
         return redirect()->route('shipments.show', $shipment)->with('toast', [
@@ -292,70 +343,18 @@ class ShipmentController extends Controller
             }
         }
 
-        if (! empty($shipment->biteship_order_id) && ! in_array($shipment->status, ['delivered', 'cancelled'], true)) {
+        if (! empty($shipment->biteship_order_id) && ! in_array($shipment->status, ['delivered', 'cancelled', 'disposed'], true)) {
             $orderResult = $this->biteship->getOrder($shipment->biteship_order_id);
             if (! empty($orderResult['success']) && ! empty($orderResult['data'])) {
                 $orderData = $orderResult['data'];
-                $biteshipStatus = strtolower(trim($orderData['status'] ?? ''));
+                $historyList = $orderData['courier']['history'] ?? ($orderData['history'] ?? null);
 
-                $statusMap = [
-                    'confirmed' => 'confirmed',
-                    'scheduled' => 'confirmed',
-                    'allocated' => 'allocated',
-                    'pickingup' => 'picking_up',
-                    'picking_up' => 'picking_up',
-                    'dalam penjemputan' => 'picking_up',
-                    'picked' => 'picked',
-                    'droppingoff' => 'dropping_off',
-                    'dropping_off' => 'dropping_off',
-                    'in_transit' => 'in_transit',
-                    'intransit' => 'in_transit',
-                    'on_process' => 'in_transit',
-                    'delivered' => 'delivered',
-                    'cancelled' => 'cancelled',
-                    'rejected' => 'rejected',
-                    'on_hold' => 'on_hold',
-                    'onhold' => 'on_hold',
-                    'courier_not_found' => 'courier_not_found',
-                    'couriernotfound' => 'courier_not_found',
-                    'returned' => 'returned',
-                    'return_in_transit' => 'returned',
-                ];
-
-                $mapped = $statusMap[$biteshipStatus] ?? null;
-                $newWaybill = $orderData['courier']['waybill_id'] ?? null;
-                $showUpdates = [];
-
-                if ($mapped && $mapped !== $shipment->status) {
-                    $showUpdates['status'] = $mapped;
-                }
-                if ($newWaybill && $newWaybill !== $shipment->waybill_number) {
-                    $showUpdates['waybill_number'] = $newWaybill;
-                }
-
-                $historyList = $orderData['courier']['history'] ?? ($orderData['history'] ?? []);
-                if (! empty($historyList) && is_array($historyList)) {
-                    $formattedHistory = [];
-                    foreach ($historyList as $item) {
-                        $itemStatus = strtolower(trim($item['status'] ?? ''));
-                        $formattedHistory[] = [
-                            'status' => $statusMap[$itemStatus] ?? ($item['status'] ?? 'in_transit'),
-                            'note' => $item['note'] ?? 'Status kurir: '.$itemStatus,
-                            'timestamp' => $item['updated_at'] ?? now()->toIso8601String(),
-                        ];
-                    }
-                    $showUpdates['tracking_history'] = $formattedHistory;
-                }
-
-                if (! empty($showUpdates)) {
-                    $shipment->update($showUpdates);
-                    $shipment->refresh();
-
-                    if (in_array($mapped, ['delivered', 'cancelled', 'rejected', 'courier_not_found', 'returned'], true)) {
-                        $shipment->user?->getOrCreateWallet()->syncBalances();
-                        Wallet::syncPlatformBalances();
-                    }
-                }
+                $shipment = $this->biteship->syncShipmentTracking(
+                    shipment: $shipment,
+                    biteshipStatus: isset($orderData['status']) ? (string) $orderData['status'] : null,
+                    waybillId: isset($orderData['courier']['waybill_id']) ? (string) $orderData['courier']['waybill_id'] : null,
+                    historyItems: is_array($historyList) ? $historyList : null,
+                );
             }
         }
 
@@ -395,26 +394,6 @@ class ShipmentController extends Controller
         return redirect()->route('shipments.show', $shipment)->with('toast', [
             'type' => 'error',
             'message' => $result['message'] ?? 'Gagal membuat sesi pembayaran Xendit.',
-        ]);
-    }
-
-    public function checkPayment(Request $request, Shipment $shipment, XenditService $xendit): RedirectResponse
-    {
-        abort_unless($shipment->user_id === $request->user()->id || $request->user()->isSuperAdmin(), 403);
-
-        $status = $xendit->checkInvoiceStatus($shipment);
-        $shipment->refresh();
-
-        if ($shipment->status === 'paid') {
-            return back()->with('toast', [
-                'type' => 'success',
-                'message' => 'Pembayaran berhasil diverifikasi! Kurir telah dijadwalkan.',
-            ]);
-        }
-
-        return back()->with('toast', [
-            'type' => 'info',
-            'message' => 'Status transaksi: '.($status ? strtoupper($status) : 'Menunggu pembayaran via Xendit.'),
         ]);
     }
 

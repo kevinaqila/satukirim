@@ -1,9 +1,13 @@
 export interface ShipmentItemEntry {
     name: string;
+    description?: string | null;
     category?: string;
     qty?: number;
     weight?: number;
     value?: number;
+    length?: number | null;
+    width?: number | null;
+    height?: number | null;
 }
 
 export interface ShipmentTrackingEvent {
@@ -99,9 +103,13 @@ export interface StoreOption {
 
 export interface CreateShipmentItem {
     name: string;
+    description?: string | null;
     qty: number;
     weight: number;
     value: number;
+    length?: number | null;
+    width?: number | null;
+    height?: number | null;
 }
 
 export interface CourierRate {

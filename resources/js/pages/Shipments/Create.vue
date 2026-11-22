@@ -15,6 +15,7 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppTopBar from '@/components/AppTopBar.vue';
 import InputError from '@/components/InputError.vue';
+import { getCsrfHeaders } from '@/lib/csrf';
 import CourierRatesPanel from '@/components/shipments/CourierRatesPanel.vue';
 import QuickAddStoreDialog from '@/components/shipments/QuickAddStoreDialog.vue';
 import ShipmentItemsCard from '@/components/shipments/ShipmentItemsCard.vue';
@@ -66,9 +67,13 @@ const form = useForm({
     items: [
         {
             name: '',
+            description: '',
             qty: 1,
             weight: 500,
             value: 50000,
+            length: null,
+            width: null,
+            height: null,
         },
     ] as CreateShipmentItem[],
     weight: 500,
@@ -87,9 +92,13 @@ const addItem = () => {
     if (form.items.length >= 10) return;
     form.items.push({
         name: '',
+        description: '',
         qty: 1,
         weight: 250,
         value: 50000,
+        length: null,
+        width: null,
+        height: null,
     });
 };
 
@@ -169,6 +178,9 @@ onMounted(() => {
     const destAreaIdParam = search.get('destination_area_id');
     const destAreaNameParam = search.get('destination_area_name');
     const weightParam = search.get('weight');
+    const lengthParam = search.get('length');
+    const widthParam = search.get('width');
+    const heightParam = search.get('height');
     const courierCodeParam = search.get('courier_code');
     const courierServiceParam = search.get('courier_service_code');
 
@@ -184,6 +196,17 @@ onMounted(() => {
         if (!Number.isNaN(parsedWeight) && parsedWeight >= 100 && form.items.length > 0) {
             form.items[0].qty = 1;
             form.items[0].weight = Math.min(10000, parsedWeight);
+        }
+    }
+
+    if (lengthParam && widthParam && heightParam && form.items.length > 0) {
+        const l = Math.round(Number(lengthParam));
+        const w = Math.round(Number(widthParam));
+        const h = Math.round(Number(heightParam));
+        if (l >= 1 && w >= 1 && h >= 1) {
+            form.items[0].length = Math.min(500, l);
+            form.items[0].width = Math.min(500, w);
+            form.items[0].height = Math.min(500, h);
         }
     }
 
@@ -324,6 +347,18 @@ watch(
     },
 );
 
+const activeItemsRatesSignature = computed(() =>
+    form.items
+        .map((it) => {
+            const q = Math.max(1, Number(it.qty) || 1);
+            const w = Math.max(10, Number(it.weight) || 100);
+            const hasDim = Number(it.length) > 0 && Number(it.width) > 0 && Number(it.height) > 0;
+            const dim = hasDim ? `${Math.round(Number(it.length))}x${Math.round(Number(it.width))}x${Math.round(Number(it.height))}` : '';
+            return `${q}:${w}:${dim}`;
+        })
+        .join('|'),
+);
+
 const fetchRates = async () => {
     if (!form.store_id || !form.destination_area_id || !form.weight) {
         return;
@@ -333,18 +368,40 @@ const fetchRates = async () => {
     ratesFetchError.value = null;
 
     try {
-        const params = new URLSearchParams({
-            store_id: String(form.store_id),
-            destination_area_id: String(form.destination_area_id),
-            weight: String(form.weight),
-            item_value: String(form.item_value || 50000),
+        const itemsPayload = form.items.map((it) => {
+            const entry: Record<string, string | number> = {
+                name: it.name.trim() || 'Paket Barang',
+                qty: Math.max(1, Number(it.qty) || 1),
+                weight: Math.min(10000, Math.max(10, Math.round(Number(it.weight) || 100))),
+                value: Math.max(0, Math.round(Number(it.value) || 0)),
+            };
+            const desc = (it.description || '').trim();
+            if (desc) {
+                entry.description = desc;
+            }
+            if (Number(it.length) > 0 && Number(it.width) > 0 && Number(it.height) > 0) {
+                entry.length = Math.min(500, Math.round(Number(it.length)));
+                entry.width = Math.min(500, Math.round(Number(it.width)));
+                entry.height = Math.min(500, Math.round(Number(it.height)));
+            }
+            return entry;
         });
 
-        const response = await fetch(`/shipments/rates?${params.toString()}`, {
+        const response = await fetch('/shipments/rates', {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 Accept: 'application/json',
+                ...getCsrfHeaders(),
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            body: JSON.stringify({
+                store_id: form.store_id,
+                destination_area_id: form.destination_area_id,
+                weight: form.weight,
+                item_value: form.item_value || 50000,
+                items: itemsPayload,
+            }),
         });
 
         const data = await response.json();
@@ -368,7 +425,7 @@ const fetchRates = async () => {
 };
 
 watch(
-    () => [form.store_id, form.destination_area_id, form.weight],
+    () => [form.store_id, form.destination_area_id, form.weight, activeItemsRatesSignature.value],
     ([storeId, destAreaId, weight]) => {
         if (!storeId || !destAreaId || !weight) {
             return;
@@ -381,9 +438,10 @@ watch(
 );
 
 const canSubmit = computed(() => {
-    const hasValidItems = form.items.length > 0 && form.items.every(
-        (it) => it.name.trim().length > 0 && Number(it.qty) >= 1 && Number(it.weight) >= 10,
-    );
+    const hasValidItems = form.items.length > 0 && form.items.every((it) => {
+        const dimCount = [it.length, it.width, it.height].filter((v) => typeof v === 'number' && v > 0).length;
+        return it.name.trim().length > 0 && Number(it.qty) >= 1 && Number(it.weight) >= 10 && (dimCount === 0 || dimCount === 3);
+    });
     const baseValid = Boolean(
         form.store_id &&
             form.recipient_name.trim() &&

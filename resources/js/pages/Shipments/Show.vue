@@ -10,7 +10,6 @@ import {
     ExternalLink,
     Loader2,
     Printer,
-    RefreshCw,
     Users,
 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
@@ -19,6 +18,7 @@ import ShipmentThermalLabel from '@/components/shipments/ShipmentThermalLabel.vu
 import ShipmentTrackingTimeline from '@/components/shipments/ShipmentTrackingTimeline.vue';
 import { Button } from '@/components/ui/button';
 import { useCopyClipboard } from '@/composables/useCopyClipboard';
+import { getCsrfHeaders } from '@/lib/csrf';
 import {
     formatDateTime,
     formatWeight,
@@ -49,7 +49,6 @@ defineOptions({
 const { copy, isCopied } = useCopyClipboard();
 
 const isPaying = ref(false);
-const isCheckingStatus = ref(false);
 
 const isCod = computed(() => (props.shipment.payment_method || '').toLowerCase() === 'cod');
 const codRecipientTotal = computed(
@@ -91,14 +90,28 @@ const printLabel = () => {
     window.print();
 };
 
-const checkPaymentStatus = () => {
-    isCheckingStatus.value = true;
-    router.post(`/shipments/${props.shipment.id}/check-payment`, {}, {
-        onFinish: () => {
-            isCheckingStatus.value = false;
-        },
-    });
-};
+const whatsappHref = computed(() => {
+    const rawDigits = (props.shipment.recipient_phone || '').replace(/\D/g, '');
+    const normalizedPhone = rawDigits.startsWith('0')
+        ? `62${rawDigits.slice(1)}`
+        : rawDigits;
+
+    const storeName = props.shipment.store?.name || 'Toko Kami';
+    const waybill = props.shipment.waybill_number || props.shipment.order_number;
+    const lines = [
+        `Halo Kak *${props.shipment.recipient_name}*,`,
+        `Pesanan Anda dari *${storeName}* (${props.shipment.order_number}) dikirim via *${props.shipment.courier_service_name}*.`,
+        `No. Resi: *${waybill}*`,
+    ];
+
+    if (isCod.value) {
+        lines.push(`Tagihan COD: *Rp ${codRecipientTotal.value.toLocaleString('id-ID')}*`);
+    }
+
+    lines.push(`Status: ${getShipmentStatus(props.shipment.status).label}`);
+
+    return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(lines.join('\n'))}`;
+});
 
 const handleXenditPayment = async () => {
     isPaying.value = true;
@@ -108,10 +121,15 @@ const handleXenditPayment = async () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+                Accept: 'application/json',
+                ...getCsrfHeaders(),
+                'X-Requested-With': 'XMLHttpRequest',
             },
         });
+        if (res.status === 419) {
+            window.location.reload();
+            return;
+        }
         const data = await res.json();
 
         if (data.invoice_url) {
@@ -120,9 +138,9 @@ const handleXenditPayment = async () => {
         }
 
         alert(data.message || 'Gagal memuat sesi pembayaran Xendit.');
-        checkPaymentStatus();
+        router.reload({ only: ['shipment'] });
     } catch {
-        checkPaymentStatus();
+        router.reload({ only: ['shipment'] });
     } finally {
         isPaying.value = false;
     }
@@ -250,36 +268,27 @@ onMounted(() => {
                                 <CreditCard v-else class="mr-1 sm:mr-1.5 size-3.5 sm:size-4" />
                                 Bayar Sekarang
                             </Button>
-                            <Button
-                                @click="checkPaymentStatus"
-                                variant="outline"
-                                size="sm"
-                                :disabled="isCheckingStatus"
-                                class="h-8.5 sm:h-9 md:h-10 px-2 sm:px-3 md:px-4 bg-white border-stone-200 text-stone-700 hover:bg-stone-50 text-xs md:text-sm font-semibold rounded-md cursor-pointer"
-                            >
-                                <Loader2 v-if="isCheckingStatus" class="mr-1 size-3.5 animate-spin" />
-                                <RefreshCw v-else class="mr-1 size-3.5" />
-                                Cek Status
-                            </Button>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white border border-stone-200/80 rounded-xl p-3.5 sm:p-4 shadow-xs">
-                    <h2 class="text-xs font-semibold text-stone-600 uppercase tracking-wider mb-2">Rute Pengiriman</h2>
+                <div class="bg-white border border-stone-200/80 rounded-xl p-4 md:p-5 shadow-xs">
+                    <h2 class="text-xs md:text-sm font-semibold text-stone-600 uppercase tracking-wider mb-3">Rute Pengiriman</h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-                        <div>
-                            <div class="text-xs font-medium text-stone-500 uppercase tracking-wider mb-1">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                        <div class="rounded bg-stone-50 p-3 md:p-3.5 space-y-2">
+                            <div class="text-xs font-medium text-stone-500 uppercase tracking-wider">
                                 Pengirim (Toko Asal)
                             </div>
-                            <div class="text-sm font-semibold text-stone-900 leading-snug">
-                                {{ shipment.store?.name || 'Toko Pengirim' }}
+                            <div class="space-y-0.5">
+                                <div class="text-sm md:text-base font-bold text-stone-900 leading-snug">
+                                    {{ shipment.store?.name || 'Toko Pengirim' }}
+                                </div>
+                                <div v-if="shipment.store?.phone" class="text-xs md:text-sm text-stone-500 font-medium tabular-nums">
+                                    {{ shipment.store.phone }}
+                                </div>
                             </div>
-                            <div v-if="shipment.store?.phone" class="text-xs text-stone-500 font-medium">
-                                {{ shipment.store.phone }}
-                            </div>
-                            <div class="text-xs text-stone-600 leading-snug mt-1">
+                            <div class="text-xs md:text-sm text-stone-600 leading-relaxed space-y-0.5">
                                 <div>{{ shipment.store?.address }}</div>
                                 <div v-if="shipment.store?.area_name" class="text-stone-400">
                                     {{ shipment.store.area_name }}
@@ -287,27 +296,30 @@ onMounted(() => {
                             </div>
                         </div>
 
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
+                        <div class="rounded bg-stone-50 p-3 md:p-3.5 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
                                 <div class="text-xs font-medium text-stone-500 uppercase tracking-wider">
                                     Penerima (Tujuan)
                                 </div>
                                 <a
-                                    :href="`https://wa.me/${shipment.recipient_phone.replace(/\D/g, '')}`"
+                                    :href="whatsappHref"
                                     target="_blank"
-                                    class="text-xs text-[#853953] hover:underline font-semibold inline-flex items-center gap-1 transition-colors"
+                                    rel="noopener noreferrer"
+                                    class="text-xs md:text-sm text-[#853953] hover:underline font-semibold inline-flex items-center gap-1 transition-colors shrink-0"
                                 >
                                     <span>Chat WhatsApp</span>
-                                    <ExternalLink class="size-3" />
+                                    <ExternalLink class="size-3.5" />
                                 </a>
                             </div>
-                            <div class="text-sm font-semibold text-stone-900 leading-snug">
-                                {{ shipment.recipient_name }}
+                            <div class="space-y-0.5">
+                                <div class="text-sm md:text-base font-bold text-stone-900 leading-snug">
+                                    {{ shipment.recipient_name }}
+                                </div>
+                                <div class="text-xs md:text-sm text-stone-500 font-medium tabular-nums">
+                                    {{ shipment.recipient_phone }}
+                                </div>
                             </div>
-                            <div class="text-xs text-stone-500 font-medium">
-                                {{ shipment.recipient_phone }}
-                            </div>
-                            <div class="text-xs text-stone-600 leading-snug mt-1">
+                            <div class="text-xs md:text-sm text-stone-600 leading-relaxed space-y-0.5">
                                 <div>{{ shipment.destination_address }}</div>
                                 <div class="text-stone-400">
                                     {{ formatDestinationArea(shipment.destination_area_name, shipment.destination_postal_code) }}
@@ -321,17 +333,22 @@ onMounted(() => {
                     <h2 class="text-xs md:text-sm font-semibold text-stone-600 uppercase tracking-wider mb-3">Rincian Paket & Ongkir</h2>
 
                     <div v-if="shipment.items && shipment.items.length > 0" class="rounded bg-stone-50 p-3 mb-3 space-y-2">
-                        <div class="flex items-center justify-between text-xs text-stone-500 font-semibold border-b border-stone-200/60 pb-1.5">
+                        <div class="flex items-center justify-between text-xs md:text-sm text-stone-500 font-semibold border-b border-stone-200/60 pb-1.5">
                             <span>Rincian Barang ({{ shipment.items.length }})</span>
-                            <span>{{ formatWeight(shipment.weight) }} (Rp {{ Number(shipment.item_value || 0).toLocaleString('id-ID') }})</span>
+                            <span class="tabular-nums">{{ formatWeight(shipment.weight) }} (Rp {{ Number(shipment.item_value || 0).toLocaleString('id-ID') }})</span>
                         </div>
-                        <div class="space-y-1.5 text-xs">
-                            <div v-for="(it, i) in shipment.items" :key="i" class="flex items-center justify-between">
-                                <span class="font-medium text-stone-800">
-                                    {{ it.name }} <span class="text-stone-500">({{ it.qty || 1 }}x)</span>
-                                </span>
-                                <span class="text-stone-600 tabular-nums">
-                                    {{ it.weight ? `${it.weight}g, ` : '' }}Rp {{ Number((it.qty || 1) * (it.value || 0)).toLocaleString('id-ID') }}
+                        <div class="space-y-1.5 text-xs md:text-sm">
+                            <div v-for="(it, i) in shipment.items" :key="i" class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <span class="font-medium text-stone-800">
+                                        {{ it.name }} <span class="text-stone-500">({{ it.qty || 1 }}x)</span>
+                                    </span>
+                                    <div v-if="it.description" class="text-xs text-stone-500 leading-snug mt-0.5">
+                                        {{ it.description }}
+                                    </div>
+                                </div>
+                                <span class="text-stone-600 tabular-nums shrink-0">
+                                    {{ it.weight ? `${it.weight}g` : '' }}{{ it.length && it.width && it.height ? `${it.weight ? ', ' : ''}${it.length}×${it.width}×${it.height} cm` : '' }}{{ it.weight || (it.length && it.width && it.height) ? ', ' : '' }}Rp {{ Number((it.qty || 1) * (it.value || 0)).toLocaleString('id-ID') }}
                                 </span>
                             </div>
                         </div>
@@ -423,18 +440,42 @@ onMounted(() => {
             </div>
         </div>
 
-        <ShipmentThermalLabel :shipment="shipment" />
+        <div id="thermal-label" class="hidden print:block w-full max-w-[94mm] h-[144mm] print:max-w-none print:h-[96vh] print:p-[1px] mx-auto">
+            <ShipmentThermalLabel :shipment="shipment" />
+        </div>
     </div>
 </template>
 
 <style>
 @media print {
+    @page {
+        size: 100mm 150mm;
+        margin: 3mm;
+    }
+    html,
     body {
+        margin: 0 !important;
+        padding: 0 !important;
         background-color: white !important;
         color: black !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
-    nav, header, footer, aside, .sidebar {
+    nav,
+    header,
+    footer,
+    aside,
+    .sidebar,
+    [data-slot="sidebar"],
+    [data-slot="sidebar-gap"] {
         display: none !important;
+    }
+    [data-slot="sidebar-inset"] {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: white !important;
     }
 }
 </style>
