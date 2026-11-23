@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Clock, Loader2, Search } from '@lucide/vue';
+import { ArrowRight, Clock, Loader2, Search } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +49,7 @@ const isSearchingDest = ref(false);
 const destSuggestions = ref<Array<{ id: string; name: string }>>([]);
 const showDestDropdown = ref(false);
 
-const packageWeight = ref('1');
+const packageWeight = ref('');
 const packageLength = ref('');
 const packageWidth = ref('');
 const packageHeight = ref('');
@@ -173,6 +173,12 @@ const handleQuickRateCheck = async () => {
         return;
     }
 
+    const parsedWeight = parseFloat(String(packageWeight.value));
+    if (Number.isNaN(parsedWeight) || parsedWeight < 0.1 || parsedWeight > 10) {
+        rateError.value = 'Berat paket harus diisi antara 0.1 kg hingga maksimal 10 kg.';
+        return;
+    }
+
     if (parsedDimensions.value.state === 'invalid') {
         rateError.value = 'Isi lengkap panjang, lebar, dan tinggi (1–500 cm) atau kosongkan ketiganya.';
         return;
@@ -183,7 +189,7 @@ const handleQuickRateCheck = async () => {
         const payload: Record<string, string | number> = {
             origin_area_id: originAreaId.value,
             destination_area_id: destinationAreaId.value,
-            weight: parseFloat(packageWeight.value) || 1,
+            weight: parsedWeight,
         };
         if (parsedDimensions.value.state === 'valid') {
             payload.length = parsedDimensions.value.length!;
@@ -228,8 +234,11 @@ const buildCreateShipmentUrl = (rate?: RateResultItem) => {
     if (originAreaId.value) params.set('origin_area_id', originAreaId.value);
     if (destinationAreaId.value) params.set('destination_area_id', destinationAreaId.value);
     if (destinationQuery.value) params.set('destination_area_name', destinationQuery.value);
-    const grams = Math.max(100, Math.round((parseFloat(packageWeight.value) || 1) * 1000));
-    params.set('weight', String(grams));
+    const parsedWeight = parseFloat(String(packageWeight.value));
+    if (!Number.isNaN(parsedWeight) && parsedWeight >= 0.1) {
+        const grams = Math.min(10000, Math.max(100, Math.round(parsedWeight * 1000)));
+        params.set('weight', String(grams));
+    }
     if (parsedDimensions.value.state === 'valid') {
         params.set('length', String(parsedDimensions.value.length));
         params.set('width', String(parsedDimensions.value.width));
@@ -347,7 +356,7 @@ onUnmounted(() => {
 
                 <div>
                     <label class="block text-xs sm:text-sm font-semibold text-stone-700 mb-1.5">
-                        Estimasi Berat Paket (kg)
+                        Berat Paket (kg) <span class="text-red-500">*</span>
                     </label>
                     <Input
                         v-model="packageWeight"
@@ -357,13 +366,14 @@ onUnmounted(() => {
                         max="10"
                         placeholder="1"
                         class="text-sm h-10 rounded-lg"
+                        required
                     />
                 </div>
 
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1.5">
                         <label class="block text-xs sm:text-sm font-semibold text-stone-700">
-                            Dimensi P × L × T (cm) <span class="text-xs font-normal text-stone-400">(Opsional)</span>
+                            Dimensi <span class="text-xs font-normal text-stone-400">(Opsional)</span>
                         </label>
                         <span v-if="volumetricEstimateKg" class="text-xs font-semibold text-[#853953] tabular-nums">
                             Volumetrik: {{ volumetricEstimateKg }} kg
@@ -482,9 +492,10 @@ onUnmounted(() => {
                                 </div>
                                 <Link
                                     :href="buildCreateShipmentUrl(rate)"
-                                    class="inline-block mt-1 text-xs font-semibold text-[#853953] hover:underline cursor-pointer"
+                                    class="inline-flex items-center justify-end gap-1 mt-1 text-xs font-semibold text-[#853953] hover:underline cursor-pointer"
                                 >
-                                    Kirim Paket Ini →
+                                    <span>Kirim Paket Ini</span>
+                                    <ArrowRight class="size-3.5 shrink-0" />
                                 </Link>
                             </div>
                         </div>

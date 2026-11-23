@@ -17,10 +17,15 @@ const emit = defineEmits<{
     removeItem: [index: number];
 }>();
 
-const normalizeDimensionModel = (value: string | number): number | null => {
+const normalizeNullableInt = (value: string | number, allowZero = false): number | null => {
     if (value === '' || value === null || value === undefined) return null;
     const num = Number(value);
-    return Number.isFinite(num) && num > 0 ? Math.round(num) : null;
+    if (!Number.isFinite(num)) return null;
+    const rounded = Math.round(num);
+    if (allowZero ? rounded >= 0 : rounded > 0) {
+        return rounded;
+    }
+    return null;
 };
 
 const getDimensionCount = (item: CreateShipmentItem): number => {
@@ -85,16 +90,18 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
 
                     <div class="col-span-1 sm:col-span-2 space-y-1">
                         <Label :for="`item-qty-${idx}`" class="text-sm font-medium text-stone-700">
-                            Qty
+                            Qty <span class="text-red-500">*</span>
                         </Label>
                         <Input
                             :id="`item-qty-${idx}`"
-                            v-model.number="item.qty"
+                            :model-value="item.qty ?? ''"
+                            @update:model-value="item.qty = normalizeNullableInt($event)"
                             type="number"
                             min="1"
                             max="1000"
+                            step="1"
                             placeholder="1"
-                            class="text-sm h-10 bg-white border border-stone-200"
+                            class="text-sm h-10 bg-white border border-stone-200 tabular-nums"
                             required
                         />
                         <InputError :message="errors[`items.${idx}.qty`]" />
@@ -102,17 +109,18 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
 
                     <div class="col-span-1 sm:col-span-2 space-y-1">
                         <Label :for="`item-weight-${idx}`" class="text-sm font-medium text-stone-700">
-                            Berat (gr)
+                            Berat (gr) <span class="text-red-500">*</span>
                         </Label>
                         <Input
                             :id="`item-weight-${idx}`"
-                            v-model.number="item.weight"
+                            :model-value="item.weight ?? ''"
+                            @update:model-value="item.weight = normalizeNullableInt($event)"
                             type="number"
                             min="10"
                             max="10000"
                             step="1"
-                            placeholder="250"
-                            class="text-sm h-10 bg-white border border-stone-200"
+                            placeholder="500"
+                            class="text-sm h-10 bg-white border border-stone-200 tabular-nums"
                             required
                         />
                         <InputError :message="errors[`items.${idx}.weight`]" />
@@ -120,16 +128,17 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
 
                     <div class="col-span-2 sm:col-span-3 space-y-1">
                         <Label :for="`item-val-${idx}`" class="text-sm font-medium text-stone-700">
-                            Harga per item (Rp)
+                            Harga per item (Rp) <span class="text-red-500">*</span>
                         </Label>
                         <Input
                             :id="`item-val-${idx}`"
-                            v-model.number="item.value"
+                            :model-value="item.value ?? ''"
+                            @update:model-value="item.value = normalizeNullableInt($event, true)"
                             type="number"
                             min="0"
                             step="1"
                             placeholder="50000"
-                            class="text-sm h-10 bg-white border border-stone-200"
+                            class="text-sm h-10 bg-white border border-stone-200 tabular-nums"
                             required
                         />
                         <InputError :message="errors[`items.${idx}.value`]" />
@@ -154,7 +163,7 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
                 <div class="space-y-1.5">
                     <div class="flex flex-wrap items-center justify-between gap-1.5">
                         <span class="text-xs font-medium text-stone-600">
-                            Dimensi Paket (cm) <span class="text-stone-400 font-normal">(Opsional)</span>
+                            Dimensi <span class="text-stone-400 font-normal">(Opsional)</span>
                         </span>
                         <span v-if="getVolumetricKg(item)" class="text-xs font-semibold text-[#853953] tabular-nums">
                             Est. Volumetrik: {{ getVolumetricKg(item) }} kg
@@ -164,7 +173,7 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
                         <Input
                             :id="`item-length-${idx}`"
                             :model-value="item.length ?? ''"
-                            @update:model-value="item.length = normalizeDimensionModel($event)"
+                            @update:model-value="item.length = normalizeNullableInt($event)"
                             type="number"
                             min="1"
                             max="500"
@@ -176,7 +185,7 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
                         <Input
                             :id="`item-width-${idx}`"
                             :model-value="item.width ?? ''"
-                            @update:model-value="item.width = normalizeDimensionModel($event)"
+                            @update:model-value="item.width = normalizeNullableInt($event)"
                             type="number"
                             min="1"
                             max="500"
@@ -188,7 +197,7 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
                         <Input
                             :id="`item-height-${idx}`"
                             :model-value="item.height ?? ''"
-                            @update:model-value="item.height = normalizeDimensionModel($event)"
+                            @update:model-value="item.height = normalizeNullableInt($event)"
                             type="number"
                             min="1"
                             max="500"
@@ -207,9 +216,16 @@ const getVolumetricKg = (item: CreateShipmentItem): string | null => {
                     <InputError :message="errors[`items.${idx}.length`] || errors[`items.${idx}.width`] || errors[`items.${idx}.height`]" />
                 </div>
 
-                <div v-if="Number(item.qty) > 1" class="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-500 pt-1 border-t border-stone-200/60">
-                    <span>Subtotal berat: {{ ((item.qty || 1) * (item.weight || 100)).toLocaleString('id-ID') }} gr</span>
-                    <span>Subtotal nilai: Rp {{ ((item.qty || 1) * (item.value || 0)).toLocaleString('id-ID') }}</span>
+                <div
+                    v-if="Number(item.qty) > 1 && ((item.weight !== null && Number(item.weight) >= 10) || item.value !== null)"
+                    class="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-500 pt-1 border-t border-stone-200/60"
+                >
+                    <span v-if="item.weight !== null && Number(item.weight) >= 10">
+                        Subtotal berat: {{ (Number(item.qty) * Number(item.weight)).toLocaleString('id-ID') }} gr
+                    </span>
+                    <span v-if="item.value !== null">
+                        Subtotal nilai: Rp {{ (Number(item.qty) * Number(item.value)).toLocaleString('id-ID') }}
+                    </span>
                 </div>
             </div>
         </div>

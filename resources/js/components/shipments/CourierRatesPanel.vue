@@ -51,7 +51,7 @@ const isCourierDisabledForCod = (rate: CourierRate): boolean => {
                 <span>Pilih Layanan Ekspedisi</span>
             </h2>
             <Button
-                v-if="destinationAreaId"
+                v-if="destinationAreaId && weight > 0"
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -74,6 +74,19 @@ const isCourierDisabledForCod = (rate: CourierRate): boolean => {
             </p>
             <p class="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
                 Pilih kecamatan atau kota tujuan terlebih dahulu untuk melihat tarif pengiriman.
+            </p>
+        </div>
+
+        <div
+            v-else-if="!weight || weight <= 0"
+            class="py-8 px-4 rounded-xl bg-stone-50/80 text-center space-y-2"
+        >
+            <Truck class="size-7 mx-auto text-stone-400" />
+            <p class="text-sm font-semibold text-stone-700">
+                Qty & Berat Barang Belum Diisi
+            </p>
+            <p class="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                Lengkapi Qty dan Berat (gr) barang terlebih dahulu untuk melihat tarif pengiriman.
             </p>
         </div>
 

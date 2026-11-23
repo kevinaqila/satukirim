@@ -68,17 +68,17 @@ const form = useForm({
         {
             name: '',
             description: '',
-            qty: 1,
-            weight: 500,
-            value: 50000,
+            qty: null,
+            weight: null,
+            value: null,
             length: null,
             width: null,
             height: null,
         },
     ] as CreateShipmentItem[],
-    weight: 500,
+    weight: 0,
     item_description: '',
-    item_value: 50000,
+    item_value: 0,
     courier_code: '',
     courier_service_code: '',
     courier_service_name: '',
@@ -93,9 +93,9 @@ const addItem = () => {
     form.items.push({
         name: '',
         description: '',
-        qty: 1,
-        weight: 250,
-        value: 50000,
+        qty: null,
+        weight: null,
+        value: null,
         length: null,
         width: null,
         height: null,
@@ -107,13 +107,20 @@ const removeItem = (index: number) => {
     form.items.splice(index, 1);
 };
 
+const hasValidItemWeights = computed(() => {
+    return form.items.length > 0 && form.items.every((it) => it.qty !== null && Number(it.qty) >= 1 && it.weight !== null && Number(it.weight) >= 10);
+});
+
 const totalWeightGrams = computed(() => {
     const sum = form.items.reduce((acc, it) => {
-        const q = Math.max(1, Number(it.qty) || 1);
-        const w = Math.max(10, Number(it.weight) || 100);
+        const q = Number(it.qty);
+        const w = Number(it.weight);
+        if (!Number.isFinite(q) || q < 1 || !Number.isFinite(w) || w < 10) {
+            return acc;
+        }
         return acc + q * w;
     }, 0);
-    return Math.min(10000, Math.max(100, Math.round(sum)));
+    return sum > 0 ? Math.min(10000, Math.max(100, Math.round(sum))) : 0;
 });
 
 const totalWeightKg = computed(() => {
@@ -123,8 +130,11 @@ const totalWeightKg = computed(() => {
 
 const totalItemValue = computed(() => {
     return form.items.reduce((acc, it) => {
-        const q = Math.max(1, Number(it.qty) || 1);
-        const v = Math.max(0, Number(it.value) || 0);
+        const q = Number(it.qty);
+        const v = Number(it.value);
+        if (!Number.isFinite(q) || q < 1 || it.value === null || !Number.isFinite(v) || v < 0) {
+            return acc;
+        }
         return acc + q * v;
     }, 0);
 });
@@ -347,20 +357,34 @@ watch(
     },
 );
 
-const activeItemsRatesSignature = computed(() =>
-    form.items
+const activeItemsRatesSignature = computed(() => {
+    if (!hasValidItemWeights.value) {
+        return '';
+    }
+    return form.items
         .map((it) => {
-            const q = Math.max(1, Number(it.qty) || 1);
-            const w = Math.max(10, Number(it.weight) || 100);
+            const q = Math.round(Number(it.qty));
+            const w = Math.round(Number(it.weight));
             const hasDim = Number(it.length) > 0 && Number(it.width) > 0 && Number(it.height) > 0;
             const dim = hasDim ? `${Math.round(Number(it.length))}x${Math.round(Number(it.width))}x${Math.round(Number(it.height))}` : '';
             return `${q}:${w}:${dim}`;
         })
-        .join('|'),
-);
+        .join('|');
+});
+
+const clearRateSelection = () => {
+    ratesList.value = [];
+    form.courier_code = '';
+    form.courier_service_code = '';
+    form.courier_service_name = '';
+    form.shipping_fee = 0;
+    form.estimated_delivery = '';
+};
 
 const fetchRates = async () => {
-    if (!form.store_id || !form.destination_area_id || !form.weight) {
+    if (!form.store_id || !form.destination_area_id || !hasValidItemWeights.value || form.weight <= 0) {
+        clearRateSelection();
+        ratesFetchError.value = null;
         return;
     }
 
@@ -370,11 +394,16 @@ const fetchRates = async () => {
     try {
         const itemsPayload = form.items.map((it) => {
             const entry: Record<string, string | number> = {
-                name: it.name.trim() || 'Paket Barang',
-                qty: Math.max(1, Number(it.qty) || 1),
-                weight: Math.min(10000, Math.max(10, Math.round(Number(it.weight) || 100))),
-                value: Math.max(0, Math.round(Number(it.value) || 0)),
+                qty: Math.round(Number(it.qty)),
+                weight: Math.min(10000, Math.round(Number(it.weight))),
             };
+            const name = it.name.trim();
+            if (name) {
+                entry.name = name;
+            }
+            if (it.value !== null && Number.isFinite(Number(it.value)) && Number(it.value) >= 0) {
+                entry.value = Math.round(Number(it.value));
+            }
             const desc = (it.description || '').trim();
             if (desc) {
                 entry.description = desc;
@@ -399,7 +428,7 @@ const fetchRates = async () => {
                 store_id: form.store_id,
                 destination_area_id: form.destination_area_id,
                 weight: form.weight,
-                item_value: form.item_value || 50000,
+                item_value: form.item_value,
                 items: itemsPayload,
             }),
         });
@@ -409,15 +438,11 @@ const fetchRates = async () => {
             ratesList.value = data.pricing;
             ensureValidCourierSelected();
         } else {
-            ratesList.value = [];
-            form.courier_code = '';
-            form.courier_service_code = '';
-            form.courier_service_name = '';
-            form.shipping_fee = 0;
+            clearRateSelection();
             ratesFetchError.value = 'Tidak ada layanan kurir tersedia untuk rute ini.';
         }
     } catch {
-        ratesList.value = [];
+        clearRateSelection();
         ratesFetchError.value = 'Gagal memuat tarif. Silakan periksa koneksi internet Anda.';
     } finally {
         isLoadingRates.value = false;
@@ -427,7 +452,8 @@ const fetchRates = async () => {
 watch(
     () => [form.store_id, form.destination_area_id, form.weight, activeItemsRatesSignature.value],
     ([storeId, destAreaId, weight]) => {
-        if (!storeId || !destAreaId || !weight) {
+        if (!storeId || !destAreaId || !weight || !hasValidItemWeights.value) {
+            clearRateSelection();
             return;
         }
         if (rateReloadTimer) clearTimeout(rateReloadTimer);
@@ -440,7 +466,16 @@ watch(
 const canSubmit = computed(() => {
     const hasValidItems = form.items.length > 0 && form.items.every((it) => {
         const dimCount = [it.length, it.width, it.height].filter((v) => typeof v === 'number' && v > 0).length;
-        return it.name.trim().length > 0 && Number(it.qty) >= 1 && Number(it.weight) >= 10 && (dimCount === 0 || dimCount === 3);
+        return (
+            it.name.trim().length > 0 &&
+            it.qty !== null &&
+            Number(it.qty) >= 1 &&
+            it.weight !== null &&
+            Number(it.weight) >= 10 &&
+            it.value !== null &&
+            Number(it.value) >= 0 &&
+            (dimCount === 0 || dimCount === 3)
+        );
     });
     const baseValid = Boolean(
         form.store_id &&
@@ -473,9 +508,9 @@ const submitOrder = () => {
         return;
     }
     const summary = form.items
-        .map((it) => `${it.name.trim() || 'Barang'}${Number(it.qty) > 1 ? ` (${it.qty}x)` : ''}`)
+        .map((it) => `${it.name.trim()}${Number(it.qty) > 1 ? ` (${it.qty}x)` : ''}`)
         .join(', ');
-    form.item_description = summary || 'Barang Dagangan UMKM';
+    form.item_description = summary;
     form.weight = totalWeightGrams.value;
     form.item_value = totalItemValue.value;
     form.is_cod = form.payment_type === 'cod';

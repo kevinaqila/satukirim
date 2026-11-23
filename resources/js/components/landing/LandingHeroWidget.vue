@@ -44,7 +44,7 @@ const originInput = ref('Gambir, Jakarta Pusat');
 const originAreaId = ref('IDnp10110');
 const destinationInput = ref('Gubeng, Surabaya');
 const destinationAreaId = ref('IDnp60281');
-const weightInput = ref('1');
+const weightInput = ref('');
 const lengthInput = ref('');
 const widthInput = ref('');
 const heightInput = ref('');
@@ -368,6 +368,9 @@ function selectQuickRoute(from: string, to: string): void {
         originInput.value = from;
         destinationInput.value = to;
     }
+    if (!weightInput.value) {
+        weightInput.value = '1';
+    }
     submitWidget();
 }
 
@@ -402,6 +405,11 @@ async function submitWidget(): Promise<void> {
                 }
             }
 
+            if (!oId || !dId) {
+                rateErrorMessage.value = 'Silakan pilih kota / kecamatan asal dan tujuan dari daftar pencarian.';
+                return;
+            }
+
             const parsedWeight = parseFloat(weightInput.value);
             if (isNaN(parsedWeight) || parsedWeight < 0.1 || parsedWeight > 10) {
                 rateErrorMessage.value = 'Berat paket harus antara 0.1 kg hingga maksimal 10 kg (skala parsel retail non-kargo).';
@@ -414,8 +422,8 @@ async function submitWidget(): Promise<void> {
             }
 
             const payload: Record<string, string | number> = {
-                origin_area_id: oId || 'IDnp10110',
-                destination_area_id: dId || 'IDnp60281',
+                origin_area_id: oId,
+                destination_area_id: dId,
                 weight: parsedWeight,
             };
             if (parsedDimensions.value.state === 'valid') {
@@ -635,7 +643,7 @@ async function submitWidget(): Promise<void> {
                     </div>
                     <div class="field field-dimensions">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem">
-                            <span class="field-label">Dimensi Paket (cm)</span>
+                            <span class="field-label">Dimensi</span>
                             <span class="weight-limit-badge">
                                 {{ volumetricEstimateKg ? `Volumetrik: ${volumetricEstimateKg} kg` : 'Opsional' }}
                             </span>

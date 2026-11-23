@@ -104,9 +104,9 @@ export interface StoreOption {
 export interface CreateShipmentItem {
     name: string;
     description?: string | null;
-    qty: number;
-    weight: number;
-    value: number;
+    qty: number | null;
+    weight: number | null;
+    value: number | null;
     length?: number | null;
     width?: number | null;
     height?: number | null;
