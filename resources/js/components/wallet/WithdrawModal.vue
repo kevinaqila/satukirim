@@ -36,7 +36,7 @@ const emit = defineEmits<{
 }>();
 
 const withdrawForm = useForm({
-    bank_code: 'BCA',
+    bank_code: props.defaultBankCode || '',
     account_number: '',
     account_holder_name: '',
     amount: undefined as number | undefined,
@@ -51,7 +51,7 @@ watch(
         if (!isOpen) return;
         errorMessage.value = null;
         withdrawForm.clearErrors();
-        withdrawForm.bank_code = props.defaultBankCode || 'BCA';
+        withdrawForm.bank_code = props.defaultBankCode || '';
         withdrawForm.account_number = props.defaultAccountNumber || '';
         withdrawForm.account_holder_name = props.defaultAccountHolderName || '';
         withdrawForm.save_bank = !props.hasSavedBank;
@@ -59,6 +59,11 @@ watch(
 );
 
 const submitWithdrawal = () => {
+    if (!withdrawForm.bank_code) {
+        withdrawForm.setError('bank_code', 'Pilih bank tujuan terlebih dahulu.');
+        return;
+    }
+
     errorMessage.value = null;
     withdrawForm.post('/wallet/withdraw', {
         preserveScroll: true,
@@ -121,7 +126,7 @@ const submitWithdrawal = () => {
                                     Terisi dari profil akun
                                 </span>
                             </div>
-                            <Select v-model="withdrawForm.bank_code">
+                            <Select v-model="withdrawForm.bank_code" required>
                                 <SelectTrigger
                                     id="withdraw-bank"
                                     class="w-full !h-10 bg-white border-stone-200 rounded-lg text-xs sm:text-sm text-stone-900 focus-visible:border-[#853953] focus-visible:ring-[#853953]/20 cursor-pointer"
@@ -264,7 +269,7 @@ const submitWithdrawal = () => {
                     </Button>
                     <Button
                         type="submit"
-                        :disabled="withdrawForm.processing || !withdrawForm.amount || withdrawForm.amount > availableBalance || withdrawForm.amount < 10000"
+                        :disabled="withdrawForm.processing || !withdrawForm.bank_code || !withdrawForm.amount || withdrawForm.amount > availableBalance || withdrawForm.amount < 10000"
                         class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
                     >
                         <Loader2 v-if="withdrawForm.processing" class="mr-2 size-4 animate-spin" />

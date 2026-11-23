@@ -57,7 +57,7 @@ const profileForm = useForm({
 });
 
 const bankForm = useForm({
-    bank_code: user.value?.bank_code || 'BCA',
+    bank_code: user.value?.bank_code || '',
     bank_account_number: user.value?.bank_account_number || '',
     bank_account_name: user.value?.bank_account_name || user.value?.name || '',
 });
@@ -69,7 +69,7 @@ watch(
             profileForm.name = newUser.name;
             profileForm.email = newUser.email;
             profileForm.phone = newUser.phone || '';
-            bankForm.bank_code = newUser.bank_code || 'BCA';
+            bankForm.bank_code = newUser.bank_code || '';
             bankForm.bank_account_number = newUser.bank_account_number || '';
             bankForm.bank_account_name = newUser.bank_account_name || newUser.name || '';
         }
@@ -92,6 +92,11 @@ const submitProfile = () => {
 
 const isBankSaved = ref(false);
 const submitBank = () => {
+    if (!bankForm.bank_code) {
+        bankForm.setError('bank_code', 'Pilih bank tujuan terlebih dahulu.');
+        return;
+    }
+
     bankForm.patch('/settings/bank', {
         preserveScroll: true,
         onSuccess: () => {
@@ -283,9 +288,9 @@ onUnmounted(() => {
                             <form @submit.prevent="submitBank" class="space-y-4">
                                 <div class="space-y-1.5">
                                     <Label for="modal-bank-code" class="text-xs sm:text-sm font-semibold text-stone-800">
-                                        Bank Tujuan
+                                        Bank Tujuan<span class="text-red-500 ml-1">*</span>
                                     </Label>
-                                    <Select v-model="bankForm.bank_code">
+                                    <Select v-model="bankForm.bank_code" required>
                                         <SelectTrigger
                                             id="modal-bank-code"
                                             class="w-full !h-9 sm:!h-10 bg-white border-stone-200 rounded-lg text-xs sm:text-sm text-stone-900 focus-visible:border-[#853953] focus-visible:ring-[#853953]/20 cursor-pointer"
@@ -340,7 +345,7 @@ onUnmounted(() => {
                                 <div class="flex items-center gap-3 pt-1">
                                     <Button
                                         type="submit"
-                                        :disabled="bankForm.processing"
+                                        :disabled="bankForm.processing || !bankForm.bank_code"
                                         class="bg-[#853953] hover:bg-[#6c2e43] text-white text-xs sm:text-sm font-semibold h-9 sm:h-10 px-5 rounded-lg shadow-xs cursor-pointer"
                                     >
                                         <Loader2 v-if="bankForm.processing" class="mr-2 size-4 animate-spin" />
