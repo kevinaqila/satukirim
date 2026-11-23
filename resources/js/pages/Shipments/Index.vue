@@ -297,7 +297,7 @@ const exportShipmentsToExcel = (targetData: ShipmentListItem[], subtitleSuffix =
             { header: 'Tujuan', align: 'left', type: 'text', formatter: (item) => item.destination_area_name || item.destination_address || '-' },
             { header: 'Ekspedisi', align: 'left', type: 'text', formatter: (item) => `${item.courier_code?.toUpperCase()} (${item.courier_service_name})` },
             { header: 'No. Resi (AWB)', align: 'left', type: 'text', formatter: (item) => item.waybill_number || '-' },
-            { header: 'Berat (gr)', align: 'right', type: 'number', formatter: (item) => item.weight || 1000 },
+            { header: 'Berat (gr)', align: 'right', type: 'number', formatter: (item) => item.weight ?? 0 },
             { header: 'Metode Bayar', align: 'center', type: 'text', formatter: (item) => item.payment_method === 'cod' ? 'COD (Bayar di Tempat)' : 'Non-COD (Online)' },
             { header: 'Nilai Barang (Rp)', align: 'right', type: 'currency', formatter: (item) => Number(item.item_value || 0).toLocaleString('id-ID') },
             { header: 'Ongkir (Rp)', align: 'right', type: 'currency', formatter: (item) => Number(item.shipping_fee || 0).toLocaleString('id-ID') },
@@ -343,7 +343,7 @@ const handleExportAll = async () => {
             return;
         }
 
-        exportShipmentsToExcel(items, `Semua Data (${items.length} data)`);
+        exportShipmentsToExcel(items);
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Terjadi kesalahan saat mengunduh seluruh data.';
         toast.error(message);

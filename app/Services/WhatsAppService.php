@@ -265,13 +265,14 @@ class WhatsAppService
     public function notifyShipmentReady(Shipment $shipment): void
     {
         $shipment->loadMissing('store');
-        $storeName = $shipment->store?->name ?? 'Penjual SatuKirim';
+        $storeName = trim((string) ($shipment->store?->name ?? ''));
+        $storePhrase = $storeName !== '' ? " dari *{$storeName}*" : '';
         $waybill = $shipment->waybill_number ?: $shipment->order_number;
 
         $lines = [
             "Halo *{$shipment->recipient_name}* 👋",
             '',
-            "Pesanan Anda dari *{$storeName}* sedang diproses untuk dikirim melalui *{$shipment->courier_service_name}*.",
+            "Pesanan Anda{$storePhrase} sedang diproses untuk dikirim melalui *{$shipment->courier_service_name}*.",
             '',
             "📦 Kode Order: *{$shipment->order_number}*",
             "🧾 No. Resi (AWB): *{$waybill}*",
@@ -323,13 +324,14 @@ class WhatsAppService
         }
 
         $shipment->loadMissing('store');
-        $storeName = $shipment->store?->name ?? 'Penjual SatuKirim';
+        $storeName = trim((string) ($shipment->store?->name ?? ''));
+        $storePhrase = $storeName !== '' ? " dari *{$storeName}*" : '';
         $waybill = $shipment->waybill_number ?: $shipment->order_number;
 
         $lines = [
             "Halo *{$shipment->recipient_name}* 👋",
             '',
-            "Update pengiriman pesanan dari *{$storeName}* (*{$shipment->order_number}*):",
+            "Update pengiriman pesanan{$storePhrase} (*{$shipment->order_number}*):",
             $statusMessages[$status],
             '',
             "🚚 Ekspedisi: {$shipment->courier_service_name}",

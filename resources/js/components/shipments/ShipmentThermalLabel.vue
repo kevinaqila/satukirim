@@ -83,7 +83,7 @@ const parsedItems = computed(() => {
                 Number(item.height || 0) > 0;
 
             return {
-                name: (item.name || '').trim() || 'Barang Paket',
+                name: (item.name || '').trim() || '-',
                 description: (item.description || '').trim() || null,
                 qty,
                 lineWeight: unitWeight > 0 ? unitWeight * qty : 0,
@@ -244,7 +244,7 @@ const printedTimestamp = computed(() => {
                     Pengirim
                 </div>
                 <div class="text-[11.5px] font-bold text-black leading-snug">
-                    {{ shipment.store?.name || 'Toko Pengirim' }}
+                    {{ shipment.store?.name || '-' }}
                 </div>
                 <div class="text-[10px] font-medium text-neutral-700 tabular-nums mt-0.5">
                     {{ shipment.store?.phone || '-' }}
@@ -300,7 +300,7 @@ const printedTimestamp = computed(() => {
                     <tr class="align-top">
                         <td class="py-1 pl-3 pr-1.5 tabular-nums text-neutral-500">1</td>
                         <td class="py-1 px-1.5 font-medium text-black leading-tight">
-                            {{ shipment.item_description || shipment.item_category || 'Barang Paket' }}
+                            {{ shipment.item_description || shipment.item_category || '-' }}
                         </td>
                         <td class="py-1 px-1.5 text-right tabular-nums whitespace-nowrap">1x</td>
                         <td class="py-1 pl-1.5 pr-3 text-right tabular-nums whitespace-nowrap text-neutral-800">

@@ -342,10 +342,10 @@ class BiteshipService
                         ...$item,
                         'description' => $itemDescription !== ''
                             ? $itemDescription
-                            : ($item['category'] ?? ($shipment->item_category ?: 'Retail')),
+                            : ($item['category'] ?? $shipment->item_category),
                     ],
-                    defaultName: 'Paket Pengiriman',
-                    defaultDescription: $shipment->item_category ?: 'Retail',
+                    defaultName: '',
+                    defaultDescription: $shipment->item_category,
                     defaultValue: 0,
                     minWeight: 10,
                 );
@@ -356,14 +356,14 @@ class BiteshipService
             $itemsPayload = [
                 $this->buildBiteshipItemPayload(
                     item: [
-                        'name' => $shipment->item_description ?: 'Paket Pengiriman',
-                        'description' => $shipment->item_category ?: 'Retail',
+                        'name' => $shipment->item_description,
+                        'description' => $shipment->item_category,
                         'value' => $shipment->item_value,
                         'weight' => $shipment->weight,
                         'qty' => 1,
                     ],
-                    defaultName: 'Paket Pengiriman',
-                    defaultDescription: 'Retail',
+                    defaultName: '',
+                    defaultDescription: null,
                     defaultValue: 1000,
                     minWeight: 100,
                 ),
@@ -605,20 +605,28 @@ class BiteshipService
     private function buildBiteshipItemPayload(
         array $item,
         string $defaultName,
-        string $defaultDescription,
-        int $defaultValue,
+        ?string $defaultDescription = null,
+        int $defaultValue = 0,
         int $minWeight = 10,
     ): array {
-        $name = trim($item['name'] ?? '');
-        $description = trim($item['description'] ?? '');
+        $name = trim((string) ($item['name'] ?? ''));
+        $description = trim((string) ($item['description'] ?? ''));
+        $resolvedName = $name !== '' ? $name : trim($defaultName);
+        $resolvedDescription = $description !== '' ? $description : trim((string) ($defaultDescription ?? ''));
 
-        $payload = [
-            'name' => $name !== '' ? $name : $defaultName,
-            'description' => $description !== '' ? $description : $defaultDescription,
-            'value' => max(1000, (int) ($item['value'] ?? $defaultValue)),
-            'weight' => min(10000, max($minWeight, (int) ($item['weight'] ?? $minWeight))),
-            'quantity' => max(1, (int) ($item['qty'] ?? $item['quantity'] ?? 1)),
-        ];
+        $payload = [];
+
+        if ($resolvedName !== '') {
+            $payload['name'] = $resolvedName;
+        }
+
+        if ($resolvedDescription !== '') {
+            $payload['description'] = $resolvedDescription;
+        }
+
+        $payload['value'] = max(1000, (int) ($item['value'] ?? $defaultValue));
+        $payload['weight'] = min(10000, max($minWeight, (int) ($item['weight'] ?? $minWeight)));
+        $payload['quantity'] = max(1, (int) ($item['qty'] ?? $item['quantity'] ?? 1));
 
         $length = (int) ($item['length'] ?? 0);
         $width = (int) ($item['width'] ?? 0);

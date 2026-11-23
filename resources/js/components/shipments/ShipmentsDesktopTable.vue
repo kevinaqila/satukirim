@@ -263,9 +263,9 @@ const { copy, isCopied } = useCopyClipboard();
                     <TableCell v-if="columnVisibility.store">
                         <span
                             class="text-sm font-medium text-stone-800 block truncate max-w-[72px]"
-                            :title="item.store?.name || 'Toko'"
+                            :title="item.store?.name || '-'"
                         >
-                            {{ excerptText(item.store?.name || 'Toko', 8) }}
+                            {{ excerptText(item.store?.name || '-', 8) }}
                         </span>
                     </TableCell>
 
