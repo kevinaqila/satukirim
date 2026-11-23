@@ -3,6 +3,8 @@
 namespace App\Handlers;
 
 use App\Models\AuditLog;
+use Illuminate\Support\Carbon;
+use Throwable;
 
 class AuditHandler
 {
@@ -18,6 +20,9 @@ class AuditHandler
         'courier_code' => 'Kurir',
         'courier_service_code' => 'Kode Layanan',
         'courier_service_name' => 'Layanan',
+        'biteship_order_id' => 'ID Order Biteship',
+        'tracking_history' => 'Riwayat Pengiriman',
+        'items' => 'Rincian Barang',
         'shipping_fee' => 'Ongkos Kirim',
         'platform_fee' => 'Biaya Layanan',
         'total_amount' => 'Total Tagihan',
@@ -54,18 +59,26 @@ class AuditHandler
     protected static array $statusLabels = [
         'pending_payment' => 'Belum Bayar',
         'paid' => 'Menunggu Pickup',
+        'confirmed' => 'Terkonfirmasi',
         'waiting_pickup' => 'Menunggu Pickup',
         'allocated' => 'Kurir Ditugaskan',
         'picking_up' => 'Sedang Dijemput',
+        'picked' => 'Paket Diambil',
         'in_transit' => 'Diantar',
-        'delivered' => 'Terkirim',
+        'dropping_off' => 'Sedang Diantar',
+        'delivered' => 'Paket Diterima',
         'cancelled' => 'Dibatalkan',
+        'on_hold' => 'Ditahan',
+        'rejected' => 'Ditolak',
+        'courier_not_found' => 'Kurir Tidak Ditemukan',
+        'returned' => 'Dikembalikan',
+        'disposed' => 'Dimusnahkan',
     ];
 
     /**
      * Format a key-value audit array into a list of readable bullet points.
      *
-     * @param array<string, mixed>|null $values
+     * @param  array<string, mixed>|null  $values
      * @return array<int, string>
      */
     public static function format(?array $values): array
@@ -140,17 +153,97 @@ class AuditHandler
         }
 
         if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE);
+            if ($key === 'tracking_history') {
+                return self::formatTrackingHistory($value);
+            }
+
+            if ($key === 'items') {
+                return self::formatItems($value);
+            }
+
+            return json_encode($value, JSON_UNESCAPED_UNICODE) ?: '-';
         }
 
         return (string) $value;
     }
 
     /**
+     * Format tracking history checkpoints into a concise readable summary.
+     *
+     * @param  array<int|string, mixed>  $history
+     */
+    protected static function formatTrackingHistory(array $history): string
+    {
+        if (empty($history)) {
+            return '-';
+        }
+
+        $entries = array_values(array_filter($history, fn ($entry): bool => is_array($entry)));
+        if (empty($entries)) {
+            return '-';
+        }
+
+        $latest = $entries[count($entries) - 1];
+        $statusKey = strtolower((string) ($latest['status'] ?? ''));
+        $statusLabel = $statusKey !== ''
+            ? (self::$statusLabels[$statusKey] ?? ucwords(str_replace('_', ' ', $statusKey)))
+            : '';
+        $note = trim((string) ($latest['note'] ?? ''));
+        $timestampRaw = trim((string) ($latest['timestamp'] ?? ''));
+
+        $formattedTime = '';
+        if ($timestampRaw !== '') {
+            try {
+                $formattedTime = Carbon::parse($timestampRaw)->timezone('Asia/Jakarta')->format('d/m/Y H:i');
+            } catch (Throwable) {
+                $formattedTime = $timestampRaw;
+            }
+        }
+
+        $parts = array_filter([$statusLabel, $note], fn (string $part): bool => $part !== '');
+        $summary = implode(' — ', $parts);
+
+        if ($formattedTime !== '') {
+            $summary = $summary !== '' ? "{$summary} ({$formattedTime})" : $formattedTime;
+        }
+
+        if (count($entries) > 1) {
+            return '['.count($entries)." riwayat] {$summary}";
+        }
+
+        return $summary !== '' ? $summary : '-';
+    }
+
+    /**
+     * Format shipment items list into a concise readable string.
+     *
+     * @param  array<int|string, mixed>  $items
+     */
+    protected static function formatItems(array $items): string
+    {
+        $labels = [];
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $name = trim((string) ($item['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $qty = (int) ($item['qty'] ?? 1);
+            $labels[] = $qty > 1 ? "{$name} ({$qty}x)" : $name;
+        }
+
+        return ! empty($labels) ? implode(', ', $labels) : '-';
+    }
+
+    /**
      * Record an audit log entry.
      *
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
      */
     public static function log(
         string $event,
@@ -172,4 +265,3 @@ class AuditHandler
         ]);
     }
 }
-
