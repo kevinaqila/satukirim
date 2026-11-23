@@ -32,7 +32,7 @@ const emit = defineEmits<{
     <div>
         <Dialog :open="singleOpen" @update:open="(val) => { if (!isDeleting) emit('update:singleOpen', val); }">
             <DialogContent class="sm:max-w-md bg-white">
-                <DialogHeader>
+                <DialogHeader class="text-left">
                     <DialogTitle class="text-base sm:text-lg font-bold text-stone-900">
                         Hapus Data Pengiriman?
                     </DialogTitle>
@@ -45,7 +45,7 @@ const emit = defineEmits<{
                     </DialogDescription>
                 </DialogHeader>
 
-                <DialogFooter class="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                <DialogFooter class="pt-3 flex-row items-center justify-end gap-2">
                     <Button
                         type="button"
                         variant="outline"
@@ -70,7 +70,7 @@ const emit = defineEmits<{
 
         <Dialog :open="bulkOpen" @update:open="(val) => { if (!isBulkDeleting) emit('update:bulkOpen', val); }">
             <DialogContent class="sm:max-w-md bg-white">
-                <DialogHeader>
+                <DialogHeader class="text-left">
                     <DialogTitle class="text-base sm:text-lg font-bold text-stone-900">
                         Hapus {{ bulkCount }} Data Pengiriman Terpilih?
                     </DialogTitle>
@@ -79,7 +79,7 @@ const emit = defineEmits<{
                     </DialogDescription>
                 </DialogHeader>
 
-                <DialogFooter class="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                <DialogFooter class="pt-3 flex-row items-center justify-end gap-2">
                     <Button
                         type="button"
                         variant="outline"
