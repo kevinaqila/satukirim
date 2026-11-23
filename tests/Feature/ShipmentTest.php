@@ -70,7 +70,16 @@ test('user can create a draft shipment with pending payment status', function ()
     expect($shipment->status)->toBe('pending_payment');
     expect($shipment->total_amount)->toBe(21000);
 
-    $response->assertRedirect(route('shipments.show', $shipment));
+    $response->assertRedirect(route('shipments.show', $shipment))
+        ->assertInertiaFlash('auto_pay', true);
+
+    $this->actingAs($user)
+        ->get(route('shipments.show', $shipment))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Shipments/Show')
+            ->hasFlash('auto_pay', true)
+        );
 });
 
 test('xendit webhook marks shipment as paid on paid status', function () {

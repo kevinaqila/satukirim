@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     AlertCircle,
     ArrowLeft,
@@ -46,6 +46,7 @@ defineOptions({
     },
 });
 
+const page = usePage();
 const { copy, isCopied } = useCopyClipboard();
 
 const isPaying = ref(false);
@@ -96,11 +97,13 @@ const whatsappHref = computed(() => {
         ? `62${rawDigits.slice(1)}`
         : rawDigits;
 
-    const storeName = props.shipment.store?.name || 'Toko Kami';
+    const storeName = props.shipment.store?.name?.trim();
     const waybill = props.shipment.waybill_number || props.shipment.order_number;
     const lines = [
         `Halo Kak *${props.shipment.recipient_name}*,`,
-        `Pesanan Anda dari *${storeName}* (${props.shipment.order_number}) dikirim via *${props.shipment.courier_service_name}*.`,
+        storeName
+            ? `Pesanan Anda dari *${storeName}* (${props.shipment.order_number}) dikirim via *${props.shipment.courier_service_name}*.`
+            : `Pesanan Anda (${props.shipment.order_number}) dikirim via *${props.shipment.courier_service_name}*.`,
         `No. Resi: *${waybill}*`,
     ];
 
@@ -155,8 +158,14 @@ onMounted(() => {
             }, 500);
         }
 
-        if (urlParams.get('pay') === '1' && props.shipment.status === 'pending_payment') {
-            window.history.replaceState({}, '', window.location.pathname);
+        const shouldAutoPay =
+            props.shipment.status === 'pending_payment' &&
+            (urlParams.get('pay') === '1' || Boolean(page.flash?.auto_pay));
+
+        if (shouldAutoPay) {
+            if (urlParams.get('pay') === '1') {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
             setTimeout(() => {
                 handleXenditPayment();
             }, 200);
@@ -282,7 +291,7 @@ onMounted(() => {
                             </div>
                             <div class="space-y-0.5">
                                 <div class="text-sm md:text-base font-bold text-stone-900 leading-snug">
-                                    {{ shipment.store?.name || 'Toko Pengirim' }}
+                                    {{ shipment.store?.name || '-' }}
                                 </div>
                                 <div v-if="shipment.store?.phone" class="text-xs md:text-sm text-stone-500 font-medium tabular-nums">
                                     {{ shipment.store.phone }}
@@ -360,7 +369,7 @@ onMounted(() => {
                         </div>
                         <div>
                             <span class="text-stone-400 block text-xs">Nama Barang</span>
-                            <span class="font-semibold text-stone-800 truncate block">{{ shipment.item_description || shipment.item_category || 'Barang Umum' }}</span>
+                            <span class="font-semibold text-stone-800 truncate block">{{ shipment.item_description || shipment.item_category || '-' }}</span>
                         </div>
                         <div>
                             <span class="text-stone-400 block text-xs">Nilai Barang</span>

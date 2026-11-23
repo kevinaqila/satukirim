@@ -192,15 +192,16 @@ class ShipmentController extends Controller
             $summaryNames = [];
             $normalizedItems = [];
             foreach ($items as $it) {
-                $q = max(1, (int) ($it['qty'] ?? 1));
-                $w = max(10, (int) ($it['weight'] ?? 100));
-                $v = max(0, (int) ($it['value'] ?? 0));
+                $q = (int) $it['qty'];
+                $w = (int) $it['weight'];
+                $v = (int) $it['value'];
+                $itemName = trim($it['name']);
                 $computedWeight += ($w * $q);
                 $computedValue += ($v * $q);
-                $summaryNames[] = trim($it['name'] ?? 'Barang').($q > 1 ? ' ('.$q.'x)' : '');
+                $summaryNames[] = $itemName.($q > 1 ? ' ('.$q.'x)' : '');
 
                 $normalizedItem = [
-                    'name' => trim($it['name']),
+                    'name' => $itemName,
                     'qty' => $q,
                     'weight' => $w,
                     'value' => $v,
@@ -279,8 +280,8 @@ class ShipmentController extends Controller
             'destination_area_id' => $validated['destination_area_id'],
             'destination_area_name' => $validated['destination_area_name'] ?? null,
             'weight' => $validated['weight'],
-            'item_description' => $validated['item_description'] ?? 'Barang Dagangan UMKM',
-            'item_category' => $validated['item_category'] ?? 'Fashion / Retail',
+            'item_description' => $validated['item_description'] ?? null,
+            'item_category' => $validated['item_category'] ?? null,
             'item_value' => $itemValue,
             'items' => $items,
             'courier_code' => strtolower($validated['courier_code']),
@@ -288,7 +289,7 @@ class ShipmentController extends Controller
             'courier_service_name' => $validated['courier_service_name'],
             'shipping_fee' => $shippingFee,
             'total_amount' => $totalAmount,
-            'estimated_delivery' => $validated['estimated_delivery'] ?? '1-3 hari',
+            'estimated_delivery' => $validated['estimated_delivery'] ?? null,
         ]);
 
         if ($isCod) {
@@ -315,11 +316,15 @@ class ShipmentController extends Controller
             app(WhatsAppService::class)->notifyShipmentReady($shipment->fresh() ?? $shipment);
         }
 
+        if (! $isCod) {
+            Inertia::flash('auto_pay', true);
+        }
+
         return redirect()->route('shipments.show', $shipment)->with('toast', [
             'type' => 'success',
             'message' => $isCod
                 ? 'Pesanan COD berhasil dibuat! Menunggu penjemputan kurir.'
-                : 'Pesanan pengiriman berhasil dibuat! Silakan lanjutkan pembayaran.',
+                : 'Pesanan pengiriman berhasil dibuat! Membuka halaman pembayaran...',
         ]);
     }
 
