@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 beforeEach(function () {
     $this->withoutVite();
@@ -160,4 +162,101 @@ test('super admin can export all shipments as json', function () {
     expect($data)->toHaveKey('transactions');
     expect(count($data['transactions']))->toBe(1);
     expect($data['transactions'][0]['order_number'])->toBe('SATU-ADM-EXP-1');
+});
+
+test('umkm user cannot access create user page or store user', function () {
+    $umkm = User::factory()->create(['role' => 'umkm']);
+
+    $this->actingAs($umkm)
+        ->get(route('admin.users.create'))
+        ->assertForbidden();
+
+    $this->actingAs($umkm)
+        ->post(route('admin.users.store'), [
+            'name' => 'Pengguna Baru',
+            'email' => 'baru@example.com',
+            'role' => 'umkm',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ])
+        ->assertForbidden();
+});
+
+test('super admin can render create user page', function () {
+    $admin = User::factory()->create(['role' => 'super_admin']);
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.create'))
+        ->assertOk();
+});
+
+test('super admin can create umkm user with normalized phone, wallet, and audit log', function () {
+    $admin = User::factory()->create(['role' => 'super_admin']);
+
+    $response = $this->actingAs($admin)->post(route('admin.users.store'), [
+        'name' => 'Toko Baru UMKM',
+        'email' => 'tokobaru@example.com',
+        'phone' => '081234567890',
+        'role' => 'umkm',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+    ]);
+
+    $response->assertRedirect(route('admin.users'));
+
+    $createdUser = User::where('email', 'tokobaru@example.com')->first();
+
+    expect($createdUser)->not->toBeNull();
+    expect($createdUser->name)->toBe('Toko Baru UMKM');
+    expect($createdUser->phone)->toBe('+6281234567890');
+    expect($createdUser->role)->toBe('umkm');
+    expect($createdUser->is_active)->toBeTrue();
+    expect(Hash::check('Password123!', $createdUser->password))->toBeTrue();
+    expect($createdUser->wallet)->not->toBeNull();
+
+    $audit = AuditLog::where('auditable_type', $createdUser->getMorphClass())
+        ->where('auditable_id', $createdUser->id)
+        ->where('event', 'created')
+        ->first();
+
+    expect($audit)->not->toBeNull();
+    expect($audit->new_values)->not->toHaveKey('password');
+});
+
+test('super admin can create super admin user without wallet', function () {
+    $admin = User::factory()->create(['role' => 'super_admin']);
+
+    $response = $this->actingAs($admin)->post(route('admin.users.store'), [
+        'name' => 'Admin Tambahan',
+        'email' => 'admin2@example.com',
+        'phone' => '',
+        'role' => 'super_admin',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+    ]);
+
+    $response->assertRedirect(route('admin.users'));
+
+    $createdUser = User::where('email', 'admin2@example.com')->first();
+
+    expect($createdUser)->not->toBeNull();
+    expect($createdUser->role)->toBe('super_admin');
+    expect($createdUser->phone)->toBeNull();
+    expect($createdUser->is_active)->toBeTrue();
+    expect($createdUser->wallet)->toBeNull();
+});
+
+test('super admin store user validates duplicate email, invalid role, and mismatched password', function () {
+    $admin = User::factory()->create(['role' => 'super_admin']);
+    User::factory()->create(['email' => 'existing@example.com']);
+
+    $response = $this->actingAs($admin)->post(route('admin.users.store'), [
+        'name' => 'Invalid User',
+        'email' => 'existing@example.com',
+        'role' => 'manager',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Different123!',
+    ]);
+
+    $response->assertSessionHasErrors(['email', 'role', 'password']);
 });

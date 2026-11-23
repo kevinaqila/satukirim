@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Handlers\AuditHandler;
+use App\Http\Requests\Admin\StoreUserRequest;
 use App\Models\AuditLog;
 use App\Models\Shipment;
 use App\Models\User;
@@ -45,6 +46,50 @@ class AdminController extends Controller
                 'search' => $search ?? '',
             ],
         ]);
+    }
+
+    public function createUser(): Response
+    {
+        return Inertia::render('Admin/Users/Create');
+    }
+
+    public function storeUser(StoreUserRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $phone = null;
+        if (! empty($validated['phone'])) {
+            $cleaned = preg_replace('/\D/', '', $validated['phone']) ?? '';
+            if ($cleaned !== '') {
+                if (str_starts_with($cleaned, '62')) {
+                    $phone = '+'.$cleaned;
+                } elseif (str_starts_with($cleaned, '0')) {
+                    $phone = '+62'.substr($cleaned, 1);
+                } else {
+                    $phone = '+62'.$cleaned;
+                }
+            }
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $phone,
+            'role' => $validated['role'],
+            'is_active' => true,
+            'password' => $validated['password'],
+        ]);
+
+        if ($user->role === 'umkm') {
+            $user->getOrCreateWallet();
+        }
+
+        return redirect()
+            ->route('admin.users')
+            ->with('toast', [
+                'type' => 'success',
+                'message' => "Akun pengguna {$user->name} berhasil dibuat.",
+            ]);
     }
 
     public function toggleUserStatus(Request $request, User $user): RedirectResponse

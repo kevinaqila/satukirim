@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import {
     Check,
     Power,
     Search,
     SlidersHorizontal,
+    UserPlus,
     X,
 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
@@ -260,7 +261,7 @@ const confirmBulkToggle = () => {
                     </button>
                 </div>
 
-                <div class="flex items-center justify-between sm:justify-end gap-2">
+                <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2">
                     <template v-if="selectedIds.length > 0">
                         <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#853953]/10 border border-[#853953]/25">
                             <span class="text-sm font-bold text-[#853953] tabular-nums">
@@ -334,6 +335,14 @@ const confirmBulkToggle = () => {
                             </DropdownMenuCheckboxItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+
+                    <Link
+                        href="/admin/users/create"
+                        class="inline-flex h-9 items-center gap-1.5 px-3 text-sm font-semibold text-white rounded-md bg-[#853953] hover:bg-[#6c2e43] transition-colors shrink-0 shadow-2xs"
+                    >
+                        <UserPlus class="size-4" />
+                        <span>Tambah Pengguna</span>
+                    </Link>
                 </div>
             </div>
 

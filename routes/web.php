@@ -57,6 +57,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware([EnsureSuperAdmin::class])->prefix('admin')->name('admin.')->group(function () {
         Route::patch('/users/bulk-toggle', [AdminController::class, 'bulkToggleStatus'])->name('users.bulk-toggle');
         Route::get('/users', [AdminController::class, 'users'])->name('users');
+        Route::get('/users/create', [AdminController::class, 'createUser'])->name('users.create');
+        Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
         Route::patch('/users/{user}/toggle', [AdminController::class, 'toggleUserStatus'])->name('users.toggle');
         Route::get('/shipments/export-all', [AdminController::class, 'exportAllShipments'])->name('shipments.export-all');
         Route::get('/transactions', [AdminController::class, 'transactions'])->name('transactions');
