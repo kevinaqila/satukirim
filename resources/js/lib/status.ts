@@ -73,7 +73,7 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
         textClass: 'text-purple-700',
     },
     delivered: {
-        label: 'Terkirim',
+        label: 'Paket Diterima',
         variant: 'success',
         dotClass: 'bg-emerald-600',
         badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',

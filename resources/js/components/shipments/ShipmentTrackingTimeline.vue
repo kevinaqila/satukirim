@@ -98,7 +98,7 @@ const trackingSteps = computed(() => {
         const hasDeliveredInHistory = history.some((h) => h.status === 'delivered');
         if (props.shipment.status === 'delivered' && !hasDeliveredInHistory) {
             steps.push({
-                title: 'Terkirim ke Penerima',
+                title: 'Paket Diterima',
                 note: 'Paket telah berhasil diserahkan ke penerima',
                 time: null,
                 active: true,
@@ -191,7 +191,7 @@ const trackingSteps = computed(() => {
             variant: 'primary',
         },
         {
-            title: 'Terkirim ke Penerima',
+            title: 'Paket Diterima',
             note: props.shipment.status === 'delivered'
                 ? 'Paket telah diterima dengan sukses'
                 : `Estimasi tiba ${props.shipment.estimated_delivery || '1-3 hari'}`,
