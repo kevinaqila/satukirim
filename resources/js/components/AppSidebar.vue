@@ -79,7 +79,7 @@ const adminNavItems: NavItem[] = [
         icon: Users,
     },
     {
-        title: 'Semua Pengiriman',
+        title: 'Monitoring Transaksi',
         href: '/admin/transactions',
         icon: ReceiptText,
     },

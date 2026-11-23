@@ -55,7 +55,7 @@ defineOptions({
                 href: '/admin/users',
             },
             {
-                title: 'Semua Pengiriman',
+                title: 'Monitoring Transaksi',
                 href: '/admin/transactions',
             },
         ],
@@ -257,7 +257,7 @@ const triggerExcelExport = (
             { header: 'Ekspedisi', align: 'left', type: 'text', formatter: (item) => `${item.courier_code ? item.courier_code.toUpperCase() + ' - ' : ''}${item.courier_service_name}` },
             { header: 'Metode Bayar', align: 'center', type: 'text', formatter: (item) => item.payment_method === 'cod' ? 'COD (Bayar di Tempat)' : 'Non-COD (Online)' },
             { header: 'No. Resi (AWB)', align: 'left', type: 'text', formatter: (item) => item.waybill_number || '-' },
-            { header: 'Berat (gr)', align: 'right', type: 'number', formatter: (item) => item.weight || 1000 },
+            { header: 'Berat (gr)', align: 'right', type: 'number', formatter: (item) => item.weight ?? 0 },
             { header: 'Ongkir (Rp)', align: 'right', type: 'currency', formatter: (item) => Number(item.shipping_fee || 0).toLocaleString('id-ID') },
             { header: 'Total Biaya (Rp)', align: 'right', type: 'currency', formatter: (item) => Number(item.total_amount || 0).toLocaleString('id-ID') },
             { header: 'Status', align: 'center', type: 'text', formatter: (item) => getShipmentStatus(item.status).label },
@@ -314,9 +314,9 @@ const handleExportAllFiltered = async () => {
 </script>
 
 <template>
-    <Head title="Semua Pengiriman - Super Admin SatuKirim" />
+    <Head title="Monitoring Transaksi - Super Admin SatuKirim" />
 
-    <AppTopBar title="Semua Pengiriman" />
+    <AppTopBar title="Monitoring Transaksi" />
 
     <div class="flex h-full flex-1 flex-col gap-3.5 p-3 sm:p-4 lg:p-5 w-full">
         <div class="rounded-none border border-stone-200 bg-white overflow-hidden shadow-2xs">
