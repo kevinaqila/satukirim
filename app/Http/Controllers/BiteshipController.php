@@ -29,13 +29,24 @@ class BiteshipController extends Controller
         $biteshipStatus = strtolower((string) ($data['status'] ?? ''));
 
         if (! $orderId && ! $referenceId && ! $waybillId) {
-            return response()->json(['message' => 'No matching identifiers provided'], 400);
+            return response()->json([
+                'status' => 'ok',
+                'message' => 'Webhook endpoint ready',
+            ]);
         }
 
         $shipment = Shipment::query()
-            ->when($referenceId, fn ($q) => $q->where('order_number', $referenceId))
-            ->when(! $referenceId && $orderId, fn ($q) => $q->where('biteship_order_id', $orderId))
-            ->when(! $referenceId && ! $orderId && $waybillId, fn ($q) => $q->where('waybill_number', $waybillId))
+            ->where(function ($q) use ($referenceId, $orderId, $waybillId) {
+                if ($referenceId) {
+                    $q->orWhere('order_number', $referenceId);
+                }
+                if ($orderId) {
+                    $q->orWhere('biteship_order_id', $orderId);
+                }
+                if ($waybillId) {
+                    $q->orWhere('waybill_number', $waybillId);
+                }
+            })
             ->first();
 
         if (! $shipment) {
