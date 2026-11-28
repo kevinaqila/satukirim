@@ -121,7 +121,6 @@ function scrollToSection(sectionId: string, event?: Event): void {
                     <div class="hero-tags">
                         <span><Check class="icon" /> Biaya Flat Rp 1.000</span>
                         <span><Check class="icon" /> Bebas Komisi Persen</span>
-                        <span><Check class="icon" /> Ringan Dipasang di HP</span>
                     </div>
                 </div>
 
