@@ -32,6 +32,7 @@ export type AdminUserSortField =
 
 defineProps<{
     displayedUsers: AdminUserItem[];
+    currentUserId?: number | null;
     selectedIds: number[];
     isAllSelected: boolean;
     isSomeSelected: boolean;
@@ -70,6 +71,7 @@ const emit = defineEmits<{
                     <TableHead class="w-10 pl-4 pr-2">
                         <Checkbox
                             :checked="isAllSelected ? true : isSomeSelected ? 'indeterminate' : false"
+                            :disabled="displayedUsers.every((u) => u.id === currentUserId)"
                             @update:checked="emit('toggleSelectAll', $event)"
                             aria-label="Pilih semua baris"
                         />
@@ -195,6 +197,7 @@ const emit = defineEmits<{
                     <TableCell class="pl-4 pr-2">
                         <Checkbox
                             :checked="selectedIds.includes(user.id)"
+                            :disabled="user.id === currentUserId"
                             @update:checked="() => emit('toggleSelectRow', user.id)"
                             :aria-label="`Pilih ${user.name}`"
                         />
@@ -248,14 +251,23 @@ const emit = defineEmits<{
                         <Button
                             size="icon-sm"
                             variant="ghost"
+                            :disabled="user.id === currentUserId"
                             @click="emit('openToggle', user)"
-                            class="size-8 rounded-md cursor-pointer"
+                            class="size-8 rounded-md"
                             :class="
-                                user.is_active
-                                    ? 'text-stone-500 hover:text-rose-600 hover:bg-rose-50'
-                                    : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                                user.id === currentUserId
+                                    ? 'text-stone-300 cursor-not-allowed'
+                                    : user.is_active
+                                        ? 'text-stone-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer'
+                                        : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer'
                             "
-                            :title="user.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'"
+                            :title="
+                                user.id === currentUserId
+                                    ? 'Tidak dapat menonaktifkan akun sendiri'
+                                    : user.is_active
+                                        ? 'Nonaktifkan Akun'
+                                        : 'Aktifkan Akun'
+                            "
                         >
                             <Power class="size-4" />
                         </Button>

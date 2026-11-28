@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     Check,
     Power,
@@ -133,22 +133,30 @@ const displayedUsers = computed(() => {
     return list;
 });
 
+const page = usePage();
+const currentUserId = computed<number | null>(() => page.props.auth?.user?.id ?? null);
+
+const selectableUsers = computed(() => {
+    return displayedUsers.value.filter((u) => u.id !== currentUserId.value);
+});
+
 const selectedIds = ref<number[]>([]);
 
 const isAllSelected = computed(() => {
-    if (displayedUsers.value.length === 0) return false;
-    return displayedUsers.value.every((u) => selectedIds.value.includes(u.id));
+    if (selectableUsers.value.length === 0) return false;
+    return selectableUsers.value.every((u) => selectedIds.value.includes(u.id));
 });
 
 const isSomeSelected = computed(() => {
-    return displayedUsers.value.some((u) => selectedIds.value.includes(u.id)) && !isAllSelected.value;
+    return selectableUsers.value.some((u) => selectedIds.value.includes(u.id)) && !isAllSelected.value;
 });
 
 const toggleSelectAll = (checked: boolean | 'indeterminate') => {
-    selectedIds.value = checked === true ? displayedUsers.value.map((u) => u.id) : [];
+    selectedIds.value = checked === true ? selectableUsers.value.map((u) => u.id) : [];
 };
 
 const toggleSelectRow = (id: number) => {
+    if (id === currentUserId.value) return;
     const idx = selectedIds.value.indexOf(id);
     if (idx >= 0) {
         selectedIds.value.splice(idx, 1);
@@ -162,6 +170,7 @@ const isToggleModalOpen = ref(false);
 const isToggleLoading = ref(false);
 
 const openToggleStatusModal = (user: AdminUserItem) => {
+    if (user.id === currentUserId.value) return;
     userToToggle.value = user;
     isToggleModalOpen.value = true;
 };
@@ -349,6 +358,7 @@ const confirmBulkToggle = () => {
             <AdminUsersTable
                 v-if="displayedUsers.length > 0"
                 :displayed-users="displayedUsers"
+                :current-user-id="currentUserId"
                 :selected-ids="selectedIds"
                 :is-all-selected="isAllSelected"
                 :is-some-selected="isSomeSelected"
