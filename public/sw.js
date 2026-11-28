@@ -1,4 +1,4 @@
-const CACHE_NAME = 'satukirim-pwa-v2';
+const CACHE_NAME = 'satukirim-pwa-v3';
 const OFFLINE_URL = '/offline.html';
 const ASSETS_TO_CACHE = [
     '/',
@@ -6,7 +6,7 @@ const ASSETS_TO_CACHE = [
     '/favicon.svg',
     '/icon-192.png',
     '/icon-512.png',
-    '/manifest.webmanifest?v=3'
+    '/manifest.webmanifest?v=4'
 ];
 
 self.addEventListener('install', (event) => {
